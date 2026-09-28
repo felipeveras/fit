@@ -1,4 +1,7 @@
-# Health Coach — arquitetura e contratos v1
+﻿# Health Coach — arquitetura e contratos v1
+
+> **Planejamento histórico (HOM-25).** A HOM-26 foi simplificada para uso pessoal.
+> Para o modelo de banco atual, veja [supabase/README.md](../supabase/README.md).
 
 Planejamento da [HOM-25](https://linear.app/homefelipev/issue/HOM-25/planejar-arquitetura-e-contratos-do-health-coach), em 26/09/2026; revisão documental após recuperação da sessão. Status: contratos v1 fechados para execução futura; validações de ambiente pendentes estão explicitadas abaixo. Este documento não atesta implementação, provisionamento ou aceite operacional.
 

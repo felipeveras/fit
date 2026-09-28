@@ -1,4 +1,7 @@
-# Health Coach — estratégia de sincronização v1
+﻿# Health Coach — estratégia de sincronização v1
+
+> **Planejamento histórico (HOM-25).** A HOM-26 foi simplificada para uso pessoal.
+> O banco atual usa upsert por chave canônica; veja [supabase/README.md](../supabase/README.md).
 
 Planejamento HOM-25, 26/09/2026. Implementação em HOM-28, apoiada por HOM-26/27; diagnóstico visual em HOM-31. Contratos e segurança em [architecture.md](architecture.md), entidades em [database-schema.md](database-schema.md), leitura em [health-connect-mapping.md](health-connect-mapping.md).
 

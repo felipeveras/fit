@@ -1,4 +1,7 @@
-# Health Coach — modelo de dados v1
+﻿# Health Coach — modelo de dados v1
+
+> **Planejamento histórico (HOM-25).** A HOM-26 foi simplificada para uso pessoal.
+> Para o schema atual, veja [supabase/README.md](../supabase/README.md).
 
 Especificação de planejamento da HOM-25, 26/09/2026. Não contém DDL executável nem migrations. Provisionamento, SQL, funções, policies e testes pertencem à HOM-26. Contexto e decisões em [architecture.md](architecture.md); regras de produção dos valores em [health-connect-mapping.md](health-connect-mapping.md).
 
