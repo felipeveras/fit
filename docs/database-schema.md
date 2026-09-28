@@ -1,5 +1,7 @@
 # Health Coach — modelo de dados v1
 
+> **Planejamento histórico da HOM-25.** O contrato ativo do banco para a V1 está em [supabase/README.md](../supabase/README.md). RPCs, executores, lease, writer e Hermes descritos aqui foram adiados.
+
 Especificação de planejamento da HOM-25, 26/09/2026. Não contém DDL executável nem migrations. Provisionamento, SQL, funções, policies e testes pertencem à HOM-26. Contexto e decisões em [architecture.md](architecture.md); regras de produção dos valores em [health-connect-mapping.md](health-connect-mapping.md).
 
 ## 1. Organização e invariantes

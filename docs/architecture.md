@@ -1,5 +1,7 @@
 # Health Coach — arquitetura e contratos v1
 
+> **Planejamento histórico da HOM-25.** O contrato ativo do banco para a V1 está em [supabase/README.md](../supabase/README.md). RPCs, executores, lease, writer e Hermes descritos aqui foram adiados.
+
 Planejamento da [HOM-25](https://linear.app/homefelipev/issue/HOM-25/planejar-arquitetura-e-contratos-do-health-coach), em 26/09/2026; revisão documental após recuperação da sessão. Status: contratos v1 fechados para execução futura; validações de ambiente pendentes estão explicitadas abaixo. Este documento não atesta implementação, provisionamento ou aceite operacional.
 
 ## 1. Evidências e estado atual

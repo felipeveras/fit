@@ -1,0 +1,7 @@
+project_id = "bvyohalmpwfijfhoxnxc"
+
+[api]
+enabled = true
+schemas = ["api"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000

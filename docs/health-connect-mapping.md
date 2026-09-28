@@ -1,5 +1,7 @@
 # Health Coach — mapeamento Health Connect v1
 
+> **Planejamento histórico da HOM-25.** O contrato ativo do banco para a V1 está em [supabase/README.md](../supabase/README.md). RPCs, executores, lease, writer e Hermes descritos aqui foram adiados.
+
 Planejamento HOM-25, 26/09/2026; implementação e verificação em aparelho pertencem à HOM-27. Normalização alimenta [database-schema.md](database-schema.md) e [sync-strategy.md](sync-strategy.md). Tipos abaixo são os contratos alvo, não confirmação de que Garmin/Health Sync os esteja exportando.
 
 ## 1. Plataforma e consentimento
