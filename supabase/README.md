@@ -40,8 +40,24 @@ simulados confirmaram que reenvios de métrica/atividade mantêm uma linha, B n�
 lê/altera dados de A, Hermes sem binding não resolve usuário e Hermes vinculado
 não escreve insights de B. Os testes foram revertidos; as tabelas continuam vazias.
 
-A configuração de Auth, o backup e a criação do login/binding Hermes são passos
-administrativos. Ainda falta testar com sessões Auth reais A/B e uma conexão
-Hermes real; nenhum binding permanente existe no projeto. O advisor de segurança
-não retornou alerta crítico; há um `WARN` para proteção de senhas vazadas
-desabilitada.
+## Teste de Auth e integração com Hermes
+
+O teste de login deve usar duas contas Auth reais, A e B, sem compartilhar senhas
+ou tokens. No app ou em um cliente local com a chave publicável, entrar como A,
+gravar uma métrica de teste e reenviá-la; deve existir uma linha. Entrar como B:
+a linha de A não deve aparecer e B não deve conseguir alterá-la. Sem login, a
+tabela não deve estar acessível. Por fim, A apaga a linha de teste. Isso valida
+o caminho real Auth → Data API → RLS, ainda não coberto pelos testes SQL com
+claims simulados.
+
+O Hermes não deve usar o MCP administrativo do Supabase como integração do app.
+Quando for integrado, usará uma conexão Postgres com um login exclusivo que herda
+`hermes_coach`, associado à conta Auth em `integration.service_user_bindings`.
+Se o Hermes só aceitar MCP, uma ponte MCP própria poderá usar esse mesmo login
+e expor apenas as operações necessárias.
+Nenhum login ou binding permanente foi criado; uma conexão Hermes real ainda
+precisa ser testada.
+
+Os ajustes administrativos de Auth e backup ficam para outra versão, conforme
+decisão de 28/09/2026. O advisor de segurança não retornou alerta crítico; há
+um `WARN` para proteção de senhas vazadas desabilitada, também adiado.
