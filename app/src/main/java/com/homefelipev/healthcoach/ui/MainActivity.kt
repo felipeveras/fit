@@ -10,11 +10,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.core.net.toUri
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
@@ -30,12 +32,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val model: HealthConnectPermissionsViewModel = viewModel()
+            val syncModel: HealthSyncViewModel = viewModel()
             val state by model.state.collectAsStateWithLifecycle()
+            val syncState by syncModel.state.collectAsStateWithLifecycle()
             val scope = rememberCoroutineScope()
             val permissionLauncher = rememberLauncherForActivityResult(
                 PermissionController.createRequestPermissionResultContract(),
             ) { model.afterPermissionResult() }
-            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.refresh() }
+            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.refresh(); syncModel.refresh() }
 
             fun perform(action: PermissionAction) {
                 try {
@@ -89,6 +93,57 @@ class MainActivity : ComponentActivity() {
                         TextButton(onClick = { startActivity(Intent(this@MainActivity, PermissionsRationaleActivity::class.java)) }) {
                             Text("Privacidade e uso dos dados")
                         }
+                        HorizontalDivider()
+                        Text("Sincronização", style = MaterialTheme.typography.titleLarge)
+                        if (!syncState.signedIn) {
+                            var email by rememberSaveable { mutableStateOf("") }
+                            var password by remember { mutableStateOf("") }
+                            Text("Entre na sua conta Supabase para enviar as métricas autorizadas.")
+                            OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, singleLine = true)
+                            OutlinedTextField(value = password, onValueChange = { password = it },
+                                label = { Text("Senha") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                            Button(enabled = !syncState.busy, onClick = {
+                                syncModel.signIn(email, password)
+                                password = ""
+                            }) { Text("Entrar") }
+                        } else {
+                            Text("Conta conectada.")
+                            if (!syncState.consented) {
+                                Text("Ao autorizar, o app enviará para sua conta no Supabase os valores diários de saúde dos últimos sete dias, inclusive correções posteriores. A sincronização periódica depende da permissão de leitura em background.")
+                                Button(enabled = !syncState.busy, onClick = syncModel::authorizeSync) {
+                                    Text("Autorizar envio ao Supabase")
+                                }
+                            } else {
+                                Text("A reconciliação periódica consulta os últimos sete dias quando a leitura em background está autorizada.")
+                                Button(enabled = !syncState.busy && state.provider == ProviderState.AVAILABLE,
+                                    onClick = syncModel::syncNow) { Text("Sincronizar agora") }
+                                TextButton(enabled = !syncState.busy, onClick = syncModel::revokeSync) {
+                                    Text("Parar sincronização")
+                                }
+                            }
+                            syncState.report?.let { report ->
+                                Text("Última execução: ${report.finishedAt} · ${report.periodStart} a ${report.periodEnd}")
+                                Text("Resultado: ${report.outcome.name.lowercase()} · ${report.uploadedRows} linhas enviadas")
+                                Text("Métricas encontradas: " + report.foundMetrics.entries.joinToString { "${it.key}: ${it.value}" })
+                                Text(report.detail)
+                                report.incompleteMetrics.forEach { (metric, reason) ->
+                                    Text("$metric: $reason")
+                                }
+                                report.ambiguousOrigins.forEach { (name, origins) ->
+                                    val metric = HealthMetric.entries.firstOrNull { it.name.lowercase() == name }
+                                    if (metric != null) {
+                                        Text("Escolha a origem de $name:")
+                                        origins.sorted().forEach { origin ->
+                                            TextButton(enabled = !syncState.busy,
+                                                onClick = { syncModel.selectOrigin(metric, origin) }) { Text(origin) }
+                                        }
+                                    }
+                                }
+                            }
+                            TextButton(enabled = !syncState.busy, onClick = syncModel::signOut) { Text("Sair da conta") }
+                        }
+                        syncState.error?.let { Text(it, color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
                     }
                 }
             }

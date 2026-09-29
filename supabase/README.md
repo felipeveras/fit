@@ -25,4 +25,4 @@ Review pending SQL, then run `supabase db push --linked --skip-vault --dry-run` 
 
 ## Validation still pending
 
-The current two-table schema, RLS, grants, and anonymous denial were checked after the cleanup migration. Repeat the authenticated insert, read, upsert, and update flow through the Android app when its Auth and sync screens are ready. Verify cross-user isolation before public distribution.
+The current two-table schema, RLS, grants, and anonymous denial were checked after the cleanup migration. Repeat the authenticated insert, read, upsert, and update flow through the Android app with a configured publishable key and Health Connect data. Verify cross-user isolation before public distribution. The HOM-28 app uploads daily metrics only; the `api.activities` table remains available for later exercise support.
