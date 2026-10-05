@@ -10,13 +10,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.core.net.toUri
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
@@ -32,14 +30,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val model: HealthConnectPermissionsViewModel = viewModel()
-            val syncModel: HealthSyncViewModel = viewModel()
+            val readModel: HealthReadViewModel = viewModel()
+            val telegramModel: TelegramViewModel = viewModel()
             val state by model.state.collectAsStateWithLifecycle()
-            val syncState by syncModel.state.collectAsStateWithLifecycle()
+            val readState by readModel.state.collectAsStateWithLifecycle()
+            val telegramState by telegramModel.state.collectAsStateWithLifecycle()
             val scope = rememberCoroutineScope()
             val permissionLauncher = rememberLauncherForActivityResult(
                 PermissionController.createRequestPermissionResultContract(),
             ) { model.afterPermissionResult() }
-            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.refresh(); syncModel.refresh() }
+            LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.refresh(); readModel.read() }
 
             fun perform(action: PermissionAction) {
                 try {
@@ -94,55 +94,47 @@ class MainActivity : ComponentActivity() {
                             Text("Privacidade e uso dos dados")
                         }
                         HorizontalDivider()
-                        Text("Sincronização", style = MaterialTheme.typography.titleLarge)
-                        if (!syncState.signedIn) {
-                            var email by rememberSaveable { mutableStateOf("") }
-                            var password by remember { mutableStateOf("") }
-                            Text("Entre na sua conta Supabase para enviar as métricas autorizadas.")
-                            OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, singleLine = true)
-                            OutlinedTextField(value = password, onValueChange = { password = it },
-                                label = { Text("Senha") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-                            Button(enabled = !syncState.busy, onClick = {
-                                syncModel.signIn(email, password)
-                                password = ""
-                            }) { Text("Entrar") }
-                        } else {
-                            Text("Conta conectada.")
-                            if (!syncState.consented) {
-                                Text("Ao autorizar, o app enviará para sua conta no Supabase os valores diários de saúde dos últimos sete dias, inclusive correções posteriores. A sincronização periódica depende da permissão de leitura em background.")
-                                Button(enabled = !syncState.busy, onClick = syncModel::authorizeSync) {
-                                    Text("Autorizar envio ao Supabase")
-                                }
-                            } else {
-                                Text("A reconciliação periódica consulta os últimos sete dias quando a leitura em background está autorizada.")
-                                Button(enabled = !syncState.busy && state.provider == ProviderState.AVAILABLE,
-                                    onClick = syncModel::syncNow) { Text("Sincronizar agora") }
-                                TextButton(enabled = !syncState.busy, onClick = syncModel::revokeSync) {
-                                    Text("Parar sincronização")
-                                }
-                            }
-                            syncState.report?.let { report ->
-                                Text("Última execução: ${report.finishedAt} · ${report.periodStart} a ${report.periodEnd}")
-                                Text("Resultado: ${report.outcome.name.lowercase()} · ${report.uploadedRows} linhas enviadas")
-                                Text("Métricas encontradas: " + report.foundMetrics.entries.joinToString { "${it.key}: ${it.value}" })
-                                Text(report.detail)
-                                report.incompleteMetrics.forEach { (metric, reason) ->
-                                    Text("$metric: $reason")
-                                }
-                                report.ambiguousOrigins.forEach { (name, origins) ->
-                                    val metric = HealthMetric.entries.firstOrNull { it.name.lowercase() == name }
-                                    if (metric != null) {
-                                        Text("Escolha a origem de $name:")
-                                        origins.sorted().forEach { origin ->
-                                            TextButton(enabled = !syncState.busy,
-                                                onClick = { syncModel.selectOrigin(metric, origin) }) { Text(origin) }
-                                        }
-                                    }
-                                }
-                            }
-                            TextButton(enabled = !syncState.busy, onClick = syncModel::signOut) { Text("Sair da conta") }
+                        Text("Dados do Health Connect", style = MaterialTheme.typography.titleLarge)
+                        Text("Lê os valores diários das métricas autorizadas dos últimos sete dias neste aparelho.")
+                        Button(enabled = !readState.busy, onClick = readModel::read) {
+                            Text(if (readState.busy) "Lendo métricas…" else "Ler métricas")
                         }
-                        syncState.error?.let { Text(it, color = MaterialTheme.colorScheme.error,
+                        readState.finishedAt?.let { Text("Última leitura: $it") }
+                        HealthMetric.entries.forEach { metric ->
+                            val rows = readState.entries.filter { it.metric == metric }
+                            if (rows.isNotEmpty()) {
+                                Text("${metric.name.lowercase()} (${metric.unit})", style = MaterialTheme.typography.titleMedium)
+                                rows.forEach { entry ->
+                                    val snapshot = entry.snapshot
+                                    val value = snapshot.value?.let { "$it ${snapshot.unit}" }
+                                        ?: snapshot.availability.name.lowercase()
+                                    Text("${snapshot.localDate}: $value")
+                                }
+                            }
+                        }
+                        readState.error?.let { Text(it, color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+                        HorizontalDivider()
+                        Text("Telegram", style = MaterialTheme.typography.titleLarge)
+                        if (!telegramState.configured) {
+                            Text("Defina telegramBotToken e telegramChatId (e, se quiser, telegramThreadId) no Gradle para enviar o resumo.")
+                        } else {
+                            Button(
+                                enabled = telegramState.status != TelegramStatus.SENDING,
+                                onClick = telegramModel::send,
+                            ) {
+                                Text(if (telegramState.status == TelegramStatus.SENDING) "Enviando…" else "Enviar para Telegram")
+                            }
+                            val telegramMessage = when (telegramState.status) {
+                                TelegramStatus.SENDING -> "Enviando resumo para o Telegram…"
+                                TelegramStatus.SENT -> "Resumo enviado."
+                                TelegramStatus.IDLE -> null
+                            }
+                            telegramMessage?.let {
+                                Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                            }
+                        }
+                        telegramState.error?.let { Text(it, color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
                     }
                 }
