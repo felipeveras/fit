@@ -27,8 +27,8 @@ class PrivacyAndConsentAndroidTest {
         assertEquals(PermissionsRationaleActivity::class.java.name, alias.targetActivity)
         assertEquals("android.permission.START_VIEW_PERMISSION_USAGE", alias.permission)
         val policy = app.getString(R.string.privacy_body)
-        for (topic in listOf("Finalidade", "Acesso", "Envio e armazenamento", "Supabase",
-            "Autorizar envio ao Supabase", "Parar sincronização", "não apagam valores")) {
+        for (topic in listOf("Finalidade", "Acesso", "Dados e envio",
+            "Enviar para Telegram", "sem servidor intermediário")) {
             assertTrue(topic, policy.contains(topic))
         }
     }

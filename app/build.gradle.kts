@@ -4,8 +4,16 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val supabasePublishableKey = providers.gradleProperty("supabasePublishableKey")
-    .orElse(providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY"))
+val telegramBotToken = providers.gradleProperty("telegramBotToken")
+    .orElse(providers.environmentVariable("TELEGRAM_BOT_TOKEN"))
+    .orElse("")
+
+val telegramChatId = providers.gradleProperty("telegramChatId")
+    .orElse(providers.environmentVariable("TELEGRAM_CHAT_ID"))
+    .orElse("")
+
+val telegramThreadId = providers.gradleProperty("telegramThreadId")
+    .orElse(providers.environmentVariable("TELEGRAM_THREAD_ID"))
     .orElse("")
 
 android {
@@ -18,8 +26,9 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "SUPABASE_URL", "\"https://bvyohalmpwfijfhoxnxc.supabase.co\"")
-        buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"${supabasePublishableKey.get()}\"")
+        buildConfigField("String", "TELEGRAM_BOT_TOKEN", "\"${telegramBotToken.get()}\"")
+        buildConfigField("String", "TELEGRAM_CHAT_ID", "\"${telegramChatId.get()}\"")
+        buildConfigField("String", "TELEGRAM_THREAD_ID", "\"${telegramThreadId.get()}\"")
     }
 
     buildFeatures { compose = true; buildConfig = true }
@@ -44,7 +53,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    implementation("androidx.work:work-runtime-ktx:2.11.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.mockito:mockito-core:5.20.0")
