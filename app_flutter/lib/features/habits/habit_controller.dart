@@ -73,8 +73,9 @@ class HabitController extends ChangeNotifier {
         health == null ||
         !habits.any(
           (p) => p.habit.automation == HabitAutomation.healthConnectSteps,
-        ))
+        )) {
       return;
+    }
     syncingSteps = true;
     _notify();
     try {
@@ -107,8 +108,9 @@ class HabitController extends ChangeNotifier {
           (p) =>
               p.habit.automation == HabitAutomation.healthConnectExercise ||
               p.habit.automation == HabitAutomation.healthConnectRun,
-        ))
+        )) {
       return;
+    }
 
     try {
       final permissions = await source.getExercisePermissions();
@@ -145,7 +147,7 @@ class HabitController extends ChangeNotifier {
       exerciseOrigins = {
         ...exerciseOrigins,
         ...origins,
-        if (exerciseOrigin != null) exerciseOrigin!,
+        ?exerciseOrigin,
       }.toList()..sort();
       await repository.consumeHealthConnectExercises(period);
 

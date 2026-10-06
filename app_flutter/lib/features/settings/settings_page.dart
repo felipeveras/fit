@@ -153,18 +153,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   final state =
                       await (widget.health as HealthExerciseRepository)
                           .requestExercisePermission();
-                  if (mounted)
+                  if (mounted) {
                     setState(
                       () => message = state.granted
                           ? 'Leitura de exercícios autorizada.'
                           : 'Leitura de exercícios não autorizada.',
                     );
+                  }
                 } catch (_) {
-                  if (mounted)
+                  if (mounted) {
                     setState(
                       () => message =
                           'Não foi possível solicitar a leitura de exercícios.',
                     );
+                  }
                 }
               },
             ),

@@ -23,16 +23,18 @@ class _HabitMorningBriefState extends State<HabitMorningBrief> {
   Widget build(BuildContext context) => FutureBuilder<List<HabitSummaryItem>>(
     future: brief,
     builder: (context, snapshot) {
-      if (snapshot.hasError)
+      if (snapshot.hasError) {
         return const Text(
           'O resumo de hábitos ficará disponível quando os dados locais puderem ser lidos.',
         );
+      }
       if (!snapshot.hasData) return const LinearProgressIndicator();
       final items = snapshot.data!;
-      if (items.isEmpty)
+      if (items.isEmpty) {
         return const Text(
           'Sem hábitos ativos para acompanhar hoje. Você pode criar um hábito na aba Hábitos.',
         );
+      }
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(12),

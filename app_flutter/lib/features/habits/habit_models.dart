@@ -45,8 +45,9 @@ class HabitSchedule {
     this.intervalDays = 1,
     required DateTime startDate,
   }) : startDate = habitDay(startDate) {
-    if (targetCount < 1 || intervalDays < 1)
+    if (targetCount < 1 || intervalDays < 1) {
       throw ArgumentError('Meta e intervalo devem ser positivos.');
+    }
     if (cadence == HabitCadence.specificDays && weekdays.isEmpty) {
       throw ArgumentError('Selecione ao menos um dia da semana.');
     }
@@ -118,8 +119,9 @@ class Habit {
     this.createdAt,
   }) {
     if (name.trim().isEmpty) throw ArgumentError('Dê um nome ao hábito.');
-    if (dailyTargetCount < 1)
+    if (dailyTargetCount < 1) {
       throw ArgumentError('A meta diária deve ser positiva.');
+    }
     if (type == HabitType.quantitative &&
         (!(quantityTarget ?? 0).isFinite ||
             quantityTarget! <= 0 ||
@@ -306,7 +308,7 @@ HabitStats calculateHabitStats({
       habit.archivedAt != null && habit.archivedAt!.isBefore(habitDay(through))
       ? habitDay(habit.archivedAt!)
       : habitDay(through);
-  if (end.isBefore(start))
+  if (end.isBefore(start)) {
     return const HabitStats(
       completedOpportunities: 0,
       scheduledOpportunities: 0,
@@ -318,6 +320,7 @@ HabitStats calculateHabitStats({
       yearlyCompletionCounts: {},
       timeBuckets: {},
     );
+  }
   HabitDayRecord recordFor(DateTime day) =>
       history[day] ?? HabitDayRecord(covered: !habit.usesHealthCoverage);
   final byDate = <DateTime, int>{};
@@ -332,8 +335,9 @@ HabitStats calculateHabitStats({
     total += habit.type == HabitType.quantitative
         ? record.quantityEntries
         : record.completions;
-    if (!record.covered)
+    if (!record.covered) {
       continue; // Missing Health Connect coverage is never a zero.
+    }
     final blocked = vacationDays.contains(day) || restDays.contains(day);
     if (blocked || !habit.schedule.isScheduled(day)) continue;
     byDate[day] = record.completions;
@@ -370,8 +374,9 @@ HabitStats calculateHabitStats({
         final record = recordFor(day);
         if (record.covered &&
             !vacationDays.contains(day) &&
-            !restDays.contains(day))
+            !restDays.contains(day)) {
           coveredDays.add(day);
+        }
       }
       if (coveredDays.isNotEmpty) {
         final fullDays = _civilDayNumber(pEnd) - _civilDayNumber(cursor) + 1;
@@ -384,8 +389,9 @@ HabitStats calculateHabitStats({
           !day.isAfter(pEnd);
           day = day.add(const Duration(days: 1))
         ) {
-          if (!vacationDays.contains(day) && !restDays.contains(day))
+          if (!vacationDays.contains(day) && !restDays.contains(day)) {
             plannedActiveDays++;
+          }
         }
         final measurableDays = habit.usesHealthCoverage
             ? coveredDays.length

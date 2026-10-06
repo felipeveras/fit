@@ -42,7 +42,9 @@ class _BootstrapState extends State<_Bootstrap> {
     setState(() => _failed = false);
     try {
       await _database.open();
-      _workouts.events.connectConsumer(WorkoutHabitConsumer(HabitRepository(_database)).consume);
+      _workouts.events.connectConsumer(
+        WorkoutHabitConsumer(HabitRepository(_database)).consume,
+      );
       await _workouts.replayPendingEvents();
       await _recoverPickedPhoto();
       final preferences = AppPreferences(await SharedPreferences.getInstance());

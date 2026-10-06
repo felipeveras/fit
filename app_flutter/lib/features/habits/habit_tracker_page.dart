@@ -550,10 +550,11 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
     try {
       await c.save(values.habit, substeps: values.substeps);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         _showMessage(
           'Não foi possível salvar. Confira os campos obrigatórios.',
         );
+      }
     }
   }
 
@@ -596,13 +597,14 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
     );
     if (draft == null) return;
     if (habit.type == HabitType.quantitative) {
-      if (draft.amount != null)
+      if (draft.amount != null) {
         await c.addQuantity(
           habit.id,
           draft.amount!,
           note: draft.note,
           behavioralMoment: draft.behavior,
         );
+      }
     } else {
       await c.complete(
         habit.id,
@@ -619,8 +621,9 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
       context: context,
       builder: (_) => _NoteDialog(note: existing),
     );
-    if (note != null)
+    if (note != null) {
       await c.note(row.habit.id, note.body, photoUri: note.photoUri);
+    }
   }
 
   Future<void> _correctHistory(Habit habit) async {
@@ -675,8 +678,9 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () async {
                                 await c.removeLog(log);
-                                if (dialogContext.mounted)
+                                if (dialogContext.mounted) {
                                   Navigator.pop(dialogContext);
+                                }
                                 await _correctHistory(habit);
                               },
                             ),
@@ -765,8 +769,9 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
                         tooltip: 'Remover pausa',
                         onPressed: () async {
                           await c.removeVacation(v.id);
-                          if (dialogContext.mounted)
+                          if (dialogContext.mounted) {
                             Navigator.pop(dialogContext);
+                          }
                         },
                         icon: const Icon(Icons.close),
                       ),
@@ -803,8 +808,9 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
   Future<void> _copySummary() async {
     final json = await c.repository.exportJson();
     await Clipboard.setData(ClipboardData(text: json));
-    if (mounted)
+    if (mounted) {
       _showMessage('Resumo agregado copiado. Notas e fotos não são incluídas.');
+    }
   }
 
   Future<void> _shareCard(HabitProgress row) async {
@@ -1040,8 +1046,9 @@ class _HabitEditorState extends State<_HabitEditor> {
     color = h?.color ?? 0xFF22618B;
     automation = h?.automation ?? HabitAutomation.manual;
     reminderEnabled = h?.reminderEnabled ?? false;
-    if (h?.reminderHour != null && h?.reminderMinute != null)
+    if (h?.reminderHour != null && h?.reminderMinute != null) {
       reminder = TimeOfDay(hour: h!.reminderHour!, minute: h.reminderMinute!);
+    }
   }
 
   @override
@@ -1092,11 +1099,13 @@ class _HabitEditorState extends State<_HabitEditor> {
                   type = v.first;
                   if (type != HabitType.positive &&
                       automation != HabitAutomation.manual &&
-                      automation != HabitAutomation.healthConnectSteps)
+                      automation != HabitAutomation.healthConnectSteps) {
                     automation = HabitAutomation.manual;
+                  }
                   if (type != HabitType.quantitative &&
-                      automation == HabitAutomation.healthConnectSteps)
+                      automation == HabitAutomation.healthConnectSteps) {
                     automation = HabitAutomation.manual;
+                  }
                 }),
               ),
               if (type == HabitType.quantitative) ...[
@@ -1157,7 +1166,7 @@ class _HabitEditorState extends State<_HabitEditor> {
               ],
               const SizedBox(height: 12),
               DropdownButtonFormField<HabitCadence>(
-                value: cadence,
+                initialValue: cadence,
                 decoration: const InputDecoration(labelText: 'Frequência'),
                 items: const [
                   DropdownMenuItem(
@@ -1281,7 +1290,7 @@ class _HabitEditorState extends State<_HabitEditor> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<HabitAutomation>(
-                value: automation,
+                initialValue: automation,
                 decoration: const InputDecoration(labelText: 'Como registrar'),
                 items: const [
                   DropdownMenuItem(
@@ -1306,7 +1315,7 @@ class _HabitEditorState extends State<_HabitEditor> {
                   ),
                 ],
                 onChanged: (v) {
-                  if (v != null)
+                  if (v != null) {
                     setState(() {
                       automation = v;
                       if (v == HabitAutomation.healthConnectSteps) {
@@ -1316,6 +1325,7 @@ class _HabitEditorState extends State<_HabitEditor> {
                         type = HabitType.positive;
                       }
                     });
+                  }
                 },
               ),
               if (automation == HabitAutomation.healthConnectSteps &&
@@ -1333,11 +1343,12 @@ class _HabitEditorState extends State<_HabitEditor> {
                 value: reminderEnabled,
                 onChanged: (v) async {
                   setState(() => reminderEnabled = v);
-                  if (v && reminder == null)
+                  if (v && reminder == null) {
                     reminder = await showTimePicker(
                       context: context,
                       initialTime: const TimeOfDay(hour: 20, minute: 0),
                     );
+                  }
                   setState(() {});
                 },
               ),
@@ -1600,15 +1611,17 @@ class _NoteDialogState extends State<_NoteDialog> {
                 onPressed: () async {
                   try {
                     final uri = await HabitPhotoPicker.pickLocalImage();
-                    if (mounted && uri != null)
+                    if (mounted && uri != null) {
                       setState(() => photo.text = uri);
+                    }
                   } catch (_) {
-                    if (mounted)
+                    if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Não foi possível abrir as fotos.'),
                         ),
                       );
+                    }
                   }
                 },
                 icon: const Icon(Icons.add_photo_alternate_outlined),
@@ -1894,12 +1907,13 @@ class _FocusSettingsState extends State<_FocusSettings> {
             work,
             pause,
           ].map((e) => int.tryParse(e.text) ?? 0).toList();
-          if (values.every((v) => v > 0))
+          if (values.every((v) => v > 0)) {
             Navigator.pop(context, {
               'dailyGoalMinutes': values[0],
               'workMinutes': values[1],
               'breakMinutes': values[2],
             });
+          }
         },
         child: const Text('Salvar'),
       ),

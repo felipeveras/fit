@@ -184,8 +184,9 @@ class HabitRepository {
           where: 'substep_id IN (SELECT id FROM habit_substeps WHERE habit_id=?) AND local_date=?',
           whereArgs: [habitId, habitDateKey(occurredAt)],
         );
-        if (checked.length < substeps.length)
+        if (checked.length < substeps.length) {
           throw StateError('Conclua as etapas antes de registrar o hábito.');
+        }
       }
       var momentId = behavioralMoment?.trim().isNotEmpty == true
           ? 'moment:${DateTime.now().microsecondsSinceEpoch}'
@@ -224,8 +225,9 @@ class HabitRepository {
     String? note,
     String? behavioralMoment,
   }) async {
-    if (!amount.isFinite || amount <= 0)
+    if (!amount.isFinite || amount <= 0) {
       throw ArgumentError('Informe um valor maior que zero.');
+    }
     final db = await _db;
     await db.transaction((tx) async {
       String? momentId;
@@ -267,12 +269,13 @@ class HabitRepository {
       );
       if (rows.isEmpty) return;
       final eventId = rows.single['source_event_id'] as String?;
-      if (eventId != null)
+      if (eventId != null) {
         await tx.insert('habit_ignored_events', {
           'habit_id': rows.single['habit_id'],
           'source_event_id': eventId,
           'ignored_at': DateTime.now().toUtc().toIso8601String(),
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
       await tx.delete('habit_completions', where: 'id=?', whereArgs: [id]);
     });
   }
@@ -289,12 +292,13 @@ class HabitRepository {
       );
       if (rows.isEmpty) return;
       final eventId = rows.single['source_event_id'] as String?;
-      if (eventId != null)
+      if (eventId != null) {
         await tx.insert('habit_ignored_events', {
           'habit_id': rows.single['habit_id'],
           'source_event_id': eventId,
           'ignored_at': DateTime.now().toUtc().toIso8601String(),
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
       await tx.delete('habit_quantity_logs', where: 'id=?', whereArgs: [id]);
     });
   }
@@ -415,8 +419,9 @@ class HabitRepository {
     String label = 'Férias',
   }) async {
     final from = habitDay(start), through = habitDay(end);
-    if (through.isBefore(from))
+    if (through.isBefore(from)) {
       throw ArgumentError('A data final deve ser posterior à inicial.');
+    }
     await (await _db).insert('habit_vacations', {
       'id': 'vacation:$habitId:${habitDateKey(from)}:${habitDateKey(through)}',
       'habit_id': habitId,
@@ -499,10 +504,11 @@ class HabitRepository {
     String source = 'workout',
     bool isRunning = false,
   }) async {
-    if (eventId.trim().isEmpty || sessionId.trim().isEmpty)
+    if (eventId.trim().isEmpty || sessionId.trim().isEmpty) {
       throw ArgumentError(
         'Evento e sessão precisam de identificadores estáveis.',
       );
+    }
     final db = await _db;
     var inserted = 0;
     await db.transaction((tx) async {
@@ -512,18 +518,23 @@ class HabitRepository {
       );
       for (final row in rows) {
         final habit = Habit.fromRow(row);
-        if (habit.automation == HabitAutomation.workout && source != 'workout')
+        if (habit.automation == HabitAutomation.workout &&
+            source != 'workout') {
           continue;
+        }
         if (habit.automation == HabitAutomation.healthConnectExercise &&
-            source != 'health_connect_exercise')
+            source != 'health_connect_exercise') {
           continue;
+        }
         if (habit.automation == HabitAutomation.healthConnectRun &&
-            (source != 'health_connect_exercise' || !isRunning))
+            (source != 'health_connect_exercise' || !isRunning)) {
           continue;
+        }
         if (habit.exerciseTypes.isNotEmpty &&
             (exerciseType == null ||
-                !habit.exerciseTypes.contains(exerciseType)))
+                !habit.exerciseTypes.contains(exerciseType))) {
           continue;
+        }
         final eventKey = '$source:$eventId';
         final ignored = await tx.query(
           'habit_ignored_events',
@@ -566,10 +577,21 @@ class HabitRepository {
       if (previous != null && previous != origin) {
         // A source switch replaces automatic exercise history, while manual logs
         // and explicit ignored-event choices remain durable.
-        await tx.delete('habit_completions', where: 'source=?', whereArgs: ['health_connect_exercise']);
-        await tx.delete('habit_health_coverage', where: 'source=?', whereArgs: ['health_connect_exercise']);
+        await tx.delete(
+          'habit_completions',
+          where: 'source=?',
+          whereArgs: ['health_connect_exercise'],
+        );
+        await tx.delete(
+          'habit_health_coverage',
+          where: 'source=?',
+          whereArgs: ['health_connect_exercise'],
+        );
       }
-      await tx.insert('app_metadata', {'key': 'exercise_origin', 'value': origin}, conflictAlgorithm: ConflictAlgorithm.replace);
+      await tx.insert('app_metadata', {
+        'key': 'exercise_origin',
+        'value': origin,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     });
   }
 
@@ -726,8 +748,9 @@ class HabitRepository {
       final manualCompletionDays = <String>{};
       for (final row in completions) {
         final day = parseHabitDay(row['local_date']! as String);
-        if (row['source'] == 'manual')
+        if (row['source'] == 'manual') {
           manualCompletionDays.add(habitDateKey(day));
+        }
         completeCount.update(
           habitDateKey(day),
           (n) => n + 1,
@@ -812,8 +835,9 @@ class HabitRepository {
           var day = vacation.startDate;
           !day.isAfter(vacation.endDate);
           day = day.add(const Duration(days: 1))
-        )
+        ) {
           vacationDays.add(day);
+        }
       }
       for (
         var day = from;
@@ -920,8 +944,9 @@ class HabitRepository {
               var day = vacation.startDate;
               !day.isAfter(vacation.endDate);
               day = day.add(const Duration(days: 1))
-            )
+            ) {
               vacationDays.add(day);
+            }
           }
           final stats = calculateHabitStats(
             habit: p.habit,

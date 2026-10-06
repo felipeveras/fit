@@ -419,7 +419,9 @@ void main() {
       await tester.tap(find.text('Iniciar 1 min'));
       await tester.pump();
       await tester.pump(const Duration(minutes: 1));
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 80)));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
       await tester.pump();
       expect(find.textContaining('Sessão concluída'), findsOneWidget);
 
@@ -427,7 +429,9 @@ void main() {
       await tester.pump();
       expect(find.text('01:00'), findsOneWidget);
       await tester.pump(const Duration(minutes: 1));
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 80)));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
       await tester.pump();
       expect(find.text('Iniciar 1 min'), findsOneWidget);
     } finally {
