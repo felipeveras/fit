@@ -18,7 +18,12 @@ Future<void> settleDatabaseUi(WidgetTester tester) async {
       () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
     await tester.pump();
-    if (find.byType(LinearProgressIndicator).evaluate().isEmpty) {
+    if (find
+        .byWidgetPredicate(
+          (widget) => widget is LinearProgressIndicator && widget.value == null,
+        )
+        .evaluate()
+        .isEmpty) {
       await tester.pumpAndSettle();
       return;
     }
