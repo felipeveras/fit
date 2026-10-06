@@ -247,6 +247,12 @@ class HabitRepository {
             await tx.delete('habit_quantity_logs', where: 'habit_id=? AND source_event_id=?', whereArgs: [habit.id, eventId]);
             continue;
           }
+          if (snapshot.value! <= 0) {
+            // Keep the zero-coverage snapshot, but never insert a non-positive
+            // amount into habit_quantity_logs (whose CHECK requires amount > 0).
+            await tx.delete('habit_quantity_logs', where: 'habit_id=? AND source_event_id=?', whereArgs: [habit.id, eventId]);
+            continue;
+          }
           await tx.insert('habit_quantity_logs', {
             'id': 'hc-steps:${habit.id}:$day', 'habit_id': habit.id, 'local_date': habitDateKey(date),
             'amount': snapshot.value, 'occurred_at': (snapshot.observedAt ?? snapshot.readAt).toUtc().toIso8601String(),
@@ -259,8 +265,11 @@ class HabitRepository {
     return imported;
   }
 
-  Future<List<HabitProgress>> loadProgress({DateTime? now, bool archived = false}) async {
-    final date = habitDay(now ?? DateTime.now());
+  Future<List<HabitProgress>> loadProgress({DateTime? through, DateTime? selectedDate, bool archived = false}) async {
+    // `through` is the metric cutoff. The selected day only controls day-specific
+    // checklist/reminder/note state and may be earlier than that cutoff.
+    final date = habitDay(through ?? DateTime.now());
+    final selected = habitDay(selectedDate ?? date);
     final db = await _db;
     final habits = (await list(archived: archived)).toList();
     final progress = <HabitProgress>[];
@@ -312,7 +321,7 @@ class HabitRepository {
       }
       final stats = calculateHabitStats(habit: habit, history: records, from: from, through: date, vacationDays: vacationDays, restDays: rests, completionMinutes: minutes);
       final subs = await db.query('habit_substeps', where: 'habit_id=?', whereArgs: [habit.id], orderBy: 'position');
-      final checked = await db.query('habit_substep_logs', where: 'substep_id IN (SELECT id FROM habit_substeps WHERE habit_id=?) AND local_date=?', whereArgs: [habit.id, habitDateKey(date)]);
+      final checked = await db.query('habit_substep_logs', where: 'substep_id IN (SELECT id FROM habit_substeps WHERE habit_id=?) AND local_date=?', whereArgs: [habit.id, habitDateKey(selected)]);
       final notesRows = await db.query('habit_day_notes', where: 'habit_id=? AND local_date BETWEEN ? AND ?', whereArgs: [habit.id, habitDateKey(from), habitDateKey(date)], orderBy: 'local_date DESC');
       final reminders = await db.query('habit_reminders', where: 'habit_id=?', whereArgs: [habit.id], limit: 1);
       progress.add(HabitProgress(
@@ -330,7 +339,7 @@ class HabitRepository {
   Future<List<HabitSummaryItem>> publicSummaries({DateTime? through, int days = 30}) async {
     final end = habitDay(through ?? DateTime.now());
     final from = end.subtract(Duration(days: days - 1));
-    final rows = await loadProgress(now: end);
+    final rows = await loadProgress(through: end);
     return rows.map((p) {
       final vacationDays = <DateTime>{};
       for (final vacation in p.vacations) {
@@ -343,7 +352,7 @@ class HabitRepository {
   }
 
   /// Safe for Coach/Morning Brief/Baseline: aggregates only; never returns notes, photo URIs, or raw event payloads.
-  Future<Map<String, Object?>> coachSummary({DateTime? through}) async => {'
+  Future<Map<String, Object?>> coachSummary({DateTime? through}) async => {
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
     'habits': (await publicSummaries(through: through)).map((item) => item.toPublicMap()).toList(),
   };

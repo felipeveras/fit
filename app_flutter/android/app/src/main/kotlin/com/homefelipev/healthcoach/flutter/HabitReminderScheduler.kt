@@ -24,11 +24,13 @@ object HabitReminderScheduler {
     const val EXTRA_HABIT_ID = "habit_id"
 
     fun refresh(context: Context, habitId: String) {
-        if (readHabit(context, habitId) == null) return cancel(context, habitId)
+        val habit = readHabit(context, habitId) ?: return cancel(context, habitId)
         val row = readReminder(context, habitId) ?: return cancel(context, habitId)
         if (row.enabled != 1 || row.hour == null || row.minute == null) return cancel(context, habitId)
         val now = System.currentTimeMillis()
-        val fireAt = row.snoozedUntil?.takeIf { it > now } ?: nextLocalTime(row.hour, row.minute, now)
+        val fireAt = row.snoozedUntil?.takeIf { it > now }
+            ?: nextEligibleTime(context, habit, row.hour, row.minute, now)
+            ?: return cancel(context, habitId)
         val intent = Intent(context, HabitReminderReceiver::class.java).setAction(ACTION_FIRE).putExtra(EXTRA_HABIT_ID, habitId)
         val pending = PendingIntent.getBroadcast(context, habitId.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val alarms = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -65,6 +67,12 @@ object HabitReminderScheduler {
             withDatabase(context) { db -> db.execSQL("UPDATE habit_reminders SET snoozed_until=NULL, snooze_count=0, updated_at=? WHERE habit_id=?", arrayOf(Instant.now().toString(), habitId)) }
         }
         val habit = readHabit(context, habitId) ?: return
+        val date = LocalDate.now(ZoneId.systemDefault())
+        val eligible = withDatabase(context) { db -> dateEligible(db, habit, date) } ?: false
+        if (!eligible) {
+            refresh(context, habitId)
+            return
+        }
         ensureChannel(context)
         val open = PendingIntent.getActivity(
             context, habitId.hashCode(), Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -134,16 +142,112 @@ object HabitReminderScheduler {
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(habitId.hashCode())
     }
 
-    private fun nextLocalTime(hour: Int, minute: Int, nowMillis: Long): Long {
+    private data class Reminder(val enabled: Int, val hour: Int?, val minute: Int?, val snoozedUntil: Long?)
+    private data class HabitInfo(
+        val id: String,
+        val name: String,
+        val type: String,
+        val target: Double?,
+        val cadence: String,
+        val targetCount: Int,
+        val weekdays: Set<Int>,
+        val intervalDays: Int,
+        val startDate: LocalDate,
+    )
+
+    private fun nextEligibleTime(context: Context, habit: HabitInfo, hour: Int, minute: Int, nowMillis: Long): Long? {
         val zone = ZoneId.systemDefault()
         val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
-        var next = now.toLocalDate().atTime(hour, minute).atZone(zone)
-        if (!next.isAfter(now)) next = next.plusDays(1)
-        return next.toInstant().toEpochMilli()
+        return withDatabase(context) { db ->
+            for (offset in 0..366) {
+                val date = now.toLocalDate().plusDays(offset.toLong())
+                val fireAt = date.atTime(hour, minute).atZone(zone)
+                if (!fireAt.isAfter(now)) continue
+                if (!dateEligible(db, habit, date)) continue
+                return@withDatabase fireAt.toInstant().toEpochMilli()
+            }
+            null
+        }
     }
 
-    private data class Reminder(val enabled: Int, val hour: Int?, val minute: Int?, val snoozedUntil: Long?)
-    private data class HabitInfo(val name: String, val type: String, val target: Double?)
+    private fun dateEligible(db: SQLiteDatabase, habit: HabitInfo, date: LocalDate): Boolean {
+        if (!ReminderSchedulePolicy.isScheduled(
+                cadence = habit.cadence,
+                weekdays = habit.weekdays,
+                intervalDays = habit.intervalDays,
+                startDate = habit.startDate,
+                date = date,
+            ) || isExcludedDay(db, habit.id, date)) return false
+        if (habit.cadence == "weeklyTarget" || habit.cadence == "monthlyTarget") {
+            return ReminderSchedulePolicy.periodTargetStillDue(
+                habit.cadence,
+                habit.targetCount,
+                periodSuccessCount(db, habit, date),
+            )
+        }
+        return true
+    }
+
+    private fun isExcludedDay(db: SQLiteDatabase, habitId: String, date: LocalDate): Boolean {
+        val key = date.toString()
+        db.rawQuery(
+            "SELECT 1 FROM habit_rest_days WHERE habit_id=? AND local_date=? UNION ALL " +
+                "SELECT 1 FROM habit_vacations WHERE habit_id=? AND start_date<=? AND end_date>=? LIMIT 1",
+            arrayOf(habitId, key, habitId, key, key),
+        ).use { return it.moveToFirst() }
+    }
+
+    private fun periodSuccessCount(db: SQLiteDatabase, habit: HabitInfo, date: LocalDate): Int {
+        val naturalStart = if (habit.cadence == "weeklyTarget") {
+            date.minusDays((date.dayOfWeek.value - 1).toLong())
+        } else {
+            date.withDayOfMonth(1)
+        }
+        val periodStart = if (naturalStart.isBefore(habit.startDate)) habit.startDate else naturalStart
+        val start = periodStart.toString()
+        val through = date.toString()
+        val successes = when (habit.type) {
+            // Match the tracker: completed logs on rest/vacation days do not count.
+            "positive" -> db.rawQuery(
+                "SELECT DISTINCT local_date FROM habit_completions WHERE habit_id=? AND local_date BETWEEN ? AND ?",
+                arrayOf(habit.id, start, through),
+            ).use { dates ->
+                var count = 0
+                while (dates.moveToNext()) {
+                    val day = LocalDate.parse(dates.getString(0))
+                    if (!isExcludedDay(db, habit.id, day)) count++
+                }
+                count
+            }
+            "quantitative" -> db.rawQuery(
+                "SELECT local_date,SUM(amount) FROM habit_quantity_logs WHERE habit_id=? AND local_date BETWEEN ? AND ? GROUP BY local_date",
+                arrayOf(habit.id, start, through),
+            ).use { cursor ->
+                var count = 0
+                while (cursor.moveToNext()) {
+                    val day = LocalDate.parse(cursor.getString(0))
+                    if (cursor.getDouble(1) >= (habit.target ?: Double.POSITIVE_INFINITY) && !isExcludedDay(db, habit.id, day)) count++
+                }
+                count
+            }
+            else -> {
+                var count = 0
+                var day = periodStart
+                while (!day.isAfter(date)) {
+                    if (day >= habit.startDate && !isExcludedDay(db, habit.id, day)) {
+                        val hasOccurrence = db.rawQuery(
+                            "SELECT 1 FROM habit_completions WHERE habit_id=? AND local_date=? LIMIT 1",
+                            arrayOf(habit.id, day.toString()),
+                        ).use { it.moveToFirst() }
+                        if (!hasOccurrence) count++
+                    }
+                    day = day.plusDays(1)
+                }
+                count
+            }
+        }
+        return successes
+    }
 
     private fun readReminder(context: Context, id: String): Reminder? = withDatabase(context) { db ->
         db.rawQuery("SELECT enabled,local_hour,local_minute,snoozed_until FROM habit_reminders WHERE habit_id=?", arrayOf(id)).use { c ->
@@ -152,8 +256,13 @@ object HabitReminderScheduler {
     }
 
     private fun readHabit(context: Context, id: String): HabitInfo? = withDatabase(context) { db -> readHabit(db, id) }
-    private fun readHabit(db: SQLiteDatabase, id: String): HabitInfo? = db.rawQuery("SELECT name,type,quantity_target FROM habits WHERE id=? AND archived_at IS NULL", arrayOf(id)).use { c ->
-        if (!c.moveToFirst()) null else HabitInfo(c.getString(0), c.getString(1), if (c.isNull(2)) null else c.getDouble(2))
+    private fun readHabit(db: SQLiteDatabase, id: String): HabitInfo? = db.rawQuery("SELECT id,name,type,quantity_target,cadence,target_count,weekdays,interval_days,start_date FROM habits WHERE id=? AND archived_at IS NULL", arrayOf(id)).use { c ->
+        if (!c.moveToFirst()) null else HabitInfo(
+            id = c.getString(0), name = c.getString(1), type = c.getString(2),
+            target = if (c.isNull(3)) null else c.getDouble(3), cadence = c.getString(4),
+            targetCount = c.getInt(5), weekdays = c.getString(6).split(',').mapNotNull { it.toIntOrNull() }.toSet(),
+            intervalDays = c.getInt(7), startDate = LocalDate.parse(c.getString(8)),
+        )
     }
 
     private fun ensureChannel(context: Context) {
@@ -168,6 +277,29 @@ object HabitReminderScheduler {
         if (!file.exists()) return null
         return runCatching { SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE).use(block) }.getOrNull()
     }
+}
+
+internal object ReminderSchedulePolicy {
+    fun isScheduled(
+        cadence: String,
+        weekdays: Set<Int>,
+        intervalDays: Int,
+        startDate: LocalDate,
+        date: LocalDate,
+        restDay: Boolean = false,
+        vacation: Boolean = false,
+    ): Boolean {
+        if (date.isBefore(startDate) || restDay || vacation) return false
+        return when (cadence) {
+            "daily", "weeklyTarget", "monthlyTarget" -> true
+            "specificDays" -> date.dayOfWeek.value in weekdays
+            "everyNDays" -> intervalDays > 0 && java.time.temporal.ChronoUnit.DAYS.between(startDate, date) % intervalDays == 0L
+            else -> false
+        }
+    }
+
+    fun periodTargetStillDue(cadence: String, targetCount: Int, successes: Int): Boolean =
+        cadence !in setOf("weeklyTarget", "monthlyTarget") || successes < targetCount
 }
 
 class HabitReminderReceiver : BroadcastReceiver() {

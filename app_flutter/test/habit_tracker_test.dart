@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:app_fit/core/health/health_repository.dart';
 import 'package:app_fit/core/persistence/app_database.dart';
+import 'package:app_fit/features/habits/habit_controller.dart';
 import 'package:app_fit/features/habits/habit_models.dart';
 import 'package:app_fit/features/habits/habit_repository.dart';
+import 'package:app_fit/features/habits/habit_tracker_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -188,7 +190,7 @@ void main() {
     }
   });
 
-  test('Health Connect missing days are not turned into zero steps', () async {
+  test('Health Connect zero snapshots retain coverage and delete an older automatic sample', () async {
     final directory = await Directory.systemTemp.createTemp('habit-steps-test');
     final store = AppDatabase(factory: databaseFactoryFfi);
     try {
@@ -196,17 +198,107 @@ void main() {
       await store.open(databasePath: '${directory.path}/app_fit.db');
       await repository.saveHabit(habit(type: HabitType.quantitative, quantityTarget: 8000, unit: 'passos', automation: HabitAutomation.healthConnectSteps));
       final available = HealthSnapshot.fromMap(snapshotDto(date: '2026-10-05', value: 9000));
+      final zero = HealthSnapshot.fromMap(snapshotDto(date: '2026-10-05', value: 0));
       final noData = HealthSnapshot.fromMap(snapshotDto(date: '2026-10-06', availability: 'no_data', value: null));
       final denied = HealthSnapshot.fromMap(snapshotDto(date: '2026-10-07', availability: 'permission_denied', value: null));
-      await repository.consumeHealthConnectSteps(HealthPeriodSummary(days: 7, timezone: 'America/Sao_Paulo', snapshots: [available, noData, denied]));
-      final rows = await repository.loadProgress(now: DateTime(2026, 10, 7));
+      await repository.consumeHealthConnectSteps(HealthPeriodSummary(days: 7, timezone: 'America/Sao_Paulo', snapshots: [available]));
+      expect(await (await store.open()).query('habit_quantity_logs'), hasLength(1));
+      await repository.consumeHealthConnectSteps(HealthPeriodSummary(days: 7, timezone: 'America/Sao_Paulo', snapshots: [zero, noData, denied]));
+      final rows = await repository.loadProgress(through: DateTime(2026, 10, 7));
       final result = rows.single.stats;
-      expect(result.completedOpportunities, 1);
+      expect(result.completedOpportunities, 0);
       expect(result.scheduledOpportunities, 1);
-      expect(result.totalCompletions, 1);
+      expect(result.totalCompletions, 0);
+      expect(await (await store.open()).query('habit_quantity_logs'), isEmpty);
       final coverage = await (await store.open()).query('habit_health_coverage');
       expect(coverage.map((r) => r['availability']), containsAll(['available', 'noData', 'permissionDenied']));
     } finally {
+      await store.close();
+      await directory.delete(recursive: true);
+    }
+  });
+
+  test('selected historical checklist reload keeps metrics through the current cutoff', () async {
+    final directory = await Directory.systemTemp.createTemp('habit-selected-day-test');
+    final store = AppDatabase(factory: databaseFactoryFfi);
+    final controller = HabitController(HabitRepository(store));
+    try {
+      await store.open(databasePath: '${directory.path}/app_fit.db');
+      final repository = controller.repository;
+      await repository.saveHabit(habit(), substeps: ['Etapa A', 'Etapa B']);
+      final steps = await (await store.open()).query('habit_substeps', orderBy: 'position');
+      final tuesday = monday.add(const Duration(days: 1));
+      for (final day in [monday, tuesday]) {
+        for (final step in steps) {
+          await repository.toggleSubstep(step['id']! as String, day, true);
+        }
+        await repository.addCompletion('habit-test', DateTime(day.year, day.month, day.day, 12));
+      }
+
+      await controller.selectDate(monday, metricThrough: tuesday);
+      final progress = controller.habits.single;
+      expect(progress.checkedSubsteps, steps.map((step) => step['id']! as String).toSet());
+      expect(progress.history[tuesday]?.completions, 1);
+      expect(progress.stats.totalCompletions, 2);
+    } finally {
+      controller.dispose();
+      await store.close();
+      await directory.delete(recursive: true);
+    }
+  });
+
+  testWidgets('Pomodoro starts and counts down the configured break', (tester) async {
+    final directory = await Directory.systemTemp.createTemp('habit-pomodoro-test');
+    final store = AppDatabase(factory: databaseFactoryFfi);
+    final controller = HabitController(HabitRepository(store));
+    try {
+      await store.open(databasePath: '${directory.path}/app_fit.db');
+      await controller.refresh();
+      await controller.saveFocus(goal: 60, work: 1, pause: 1);
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: FocusPanel(controller: controller))));
+
+      await tester.tap(find.text('Iniciar 1 min'));
+      await tester.pump();
+      await tester.pump(const Duration(minutes: 1));
+      await tester.pump();
+      expect(find.textContaining('Sessão concluída'), findsOneWidget);
+
+      await tester.tap(find.text('Iniciar pausa (1 min)'));
+      await tester.pump();
+      expect(find.text('01:00'), findsOneWidget);
+      await tester.pump(const Duration(minutes: 1));
+      await tester.pump();
+      expect(find.text('Iniciar 1 min'), findsOneWidget);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      controller.dispose();
+      await store.close();
+      await directory.delete(recursive: true);
+    }
+  });
+
+  testWidgets('quantitative editor validates and saves a comma decimal identically', (tester) async {
+    final directory = await Directory.systemTemp.createTemp('habit-quantity-editor-test');
+    final store = AppDatabase(factory: databaseFactoryFfi);
+    try {
+      await store.open(databasePath: '${directory.path}/app_fit.db');
+      await tester.pumpWidget(MaterialApp(home: HabitTrackerPage(database: store)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Criar hábito'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Quantidade'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(1), '2,5');
+      await tester.enterText(find.byType(TextFormField).at(2), 'ml');
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      final habits = await (await store.open()).query('habits');
+      expect(habits, hasLength(1));
+      expect(habits.single['quantity_target'], 2.5);
+      expect(habits.single['quantity_unit'], 'ml');
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
       await store.close();
       await directory.delete(recursive: true);
     }
@@ -232,7 +324,7 @@ void main() {
       await repository.saveHabit(habit()); // A refresh/save must not reset persisted snooze state.
       final reminder = (await (await store.open()).query('habit_reminders')).single;
       expect(DateTime.parse(reminder['snoozed_until']! as String).isAfter(DateTime.now().toUtc()), isTrue);
-      expect((await repository.loadProgress(now: monday)).single.stats.totalCompletions, 1);
+      expect((await repository.loadProgress(through: monday)).single.stats.totalCompletions, 1);
       expect(await (await store.open()).query('behavioral_moments'), hasLength(1));
     } finally {
       await store.close();

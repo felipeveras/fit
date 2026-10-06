@@ -107,17 +107,17 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(children: [
-        IconButton(tooltip: 'Dia anterior', onPressed: () => c.selectDate(c.selectedDate.subtract(const Duration(days: 1))), icon: const Icon(Icons.chevron_left)),
+        IconButton(tooltip: 'Dia anterior', onPressed: () async => c.selectDate(c.selectedDate.subtract(const Duration(days: 1))), icon: const Icon(Icons.chevron_left)),
         Expanded(child: Semantics(button: true, label: 'Selecionar data', child: TextButton.icon(
           onPressed: () async {
             final picked = await showDatePicker(context: context, initialDate: c.selectedDate, firstDate: DateTime(2000), lastDate: DateTime.now());
-            if (picked != null) c.selectDate(picked);
+            if (picked != null) await c.selectDate(picked);
           },
           icon: const Icon(Icons.calendar_today_outlined),
           label: Text(_dateLabel(c.selectedDate), style: Theme.of(context).textTheme.titleMedium),
         ))),
-        if (!habitDay(c.selectedDate).isAtSameMomentAs(habitDay(DateTime.now()))) IconButton(tooltip: 'Ir para hoje', onPressed: () => c.selectDate(DateTime.now()), icon: const Icon(Icons.today_outlined)),
-        IconButton(tooltip: 'Dia seguinte', onPressed: c.selectedDate.isBefore(habitDay(DateTime.now())) ? () => c.selectDate(c.selectedDate.add(const Duration(days: 1))) : null, icon: const Icon(Icons.chevron_right)),
+        if (!habitDay(c.selectedDate).isAtSameMomentAs(habitDay(DateTime.now()))) IconButton(tooltip: 'Ir para hoje', onPressed: () async => c.selectDate(DateTime.now()), icon: const Icon(Icons.today_outlined)),
+        IconButton(tooltip: 'Dia seguinte', onPressed: c.selectedDate.isBefore(habitDay(DateTime.now())) ? () async => c.selectDate(c.selectedDate.add(const Duration(days: 1))) : null, icon: const Icon(Icons.chevron_right)),
       ]),
     ),
   );
@@ -257,7 +257,7 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
   Future<void> _correctHistory(Habit habit) async {
     final picked = await showDatePicker(context: context, initialDate: c.selectedDate, firstDate: habit.schedule.startDate, lastDate: DateTime.now());
     if (picked == null) return;
-    c.selectDate(picked);
+    await c.selectDate(picked);
     final logs = await c.logsFor(habit.id);
     if (!mounted) return;
     await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
@@ -270,7 +270,7 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
           IconButton(tooltip: 'Alterar horário', icon: const Icon(Icons.schedule), onPressed: () => _editLogTime(habit, log, dialogContext)),
           IconButton(tooltip: 'Remover registro', icon: const Icon(Icons.delete_outline), onPressed: () async { await c.removeLog(log); if (dialogContext.mounted) Navigator.pop(dialogContext); await _correctHistory(habit); }),
         ]),
-      )]))),
+      )])),
       actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Fechar'))],
   ));
   }
@@ -292,7 +292,7 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
         Text('Total de conclusões: ${row.stats.totalCompletions}'),
         Text('Força do hábito: ${(_habitStrength(row.stats) * 100).round()}/100 • 45% aderência + 30% frequência (máx. 30) + 25% melhor sequência (máx. 21).'),
         const SizedBox(height: 14), const Text('Últimos 12 meses'),
-        _Heatmap(progress: row, onTap: (day) { c.selectDate(day); Navigator.pop(dialogContext); }),
+        _Heatmap(progress: row, onTap: (day) { unawaited(c.selectDate(day)); Navigator.pop(dialogContext); }),
         const SizedBox(height: 12), Text('Evolução por horário: ${row.stats.timeBuckets.entries.map((e) => '${e.key} ${e.value}').join(' • ')}'),
         const SizedBox(height: 8), Text('Evolução mensal: ${_mapSummary(row.stats.monthlyCompletionCounts)}'),
         Text('Evolução anual: ${_mapSummary(row.stats.yearlyCompletionCounts)}'),
@@ -419,7 +419,7 @@ class _HabitEditorState extends State<_HabitEditor> {
       const SizedBox(height: 12),
       SegmentedButton<HabitType>(segments: const [ButtonSegment(value: HabitType.positive, label: Text('Positivo')), ButtonSegment(value: HabitType.avoid, label: Text('Evitar')), ButtonSegment(value: HabitType.quantitative, label: Text('Quantidade'))], selected: {type}, onSelectionChanged: (v) => setState(() { type = v.first; if (type != HabitType.positive && automation != HabitAutomation.manual && automation != HabitAutomation.healthConnectSteps) automation = HabitAutomation.manual; if (type != HabitType.quantitative && automation == HabitAutomation.healthConnectSteps) automation = HabitAutomation.manual; })),
       if (type == HabitType.quantitative) ...[
-        const SizedBox(height: 12), Row(children: [Expanded(child: TextFormField(controller: target, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Meta'), validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Meta maior que zero.' : null)), const SizedBox(width: 10), Expanded(child: TextFormField(controller: unit, decoration: const InputDecoration(labelText: 'Unidade (ex.: ml, min, passos)'), validator: (v) => v?.trim().isEmpty ?? true ? 'Informe a unidade.' : null))]),
+        const SizedBox(height: 12), Row(children: [Expanded(child: TextFormField(controller: target, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Meta'), validator: (v) => _parseQuantityTarget(v) == null ? 'Meta maior que zero.' : null)), const SizedBox(width: 10), Expanded(child: TextFormField(controller: unit, decoration: const InputDecoration(labelText: 'Unidade (ex.: ml, min, passos)'), validator: (v) => v?.trim().isEmpty ?? true ? 'Informe a unidade.' : null))]),
       ],
       if (type == HabitType.positive) ...[
         const SizedBox(height: 12), TextFormField(initialValue: '$dailyCount', keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Conclusões necessárias por dia'), onChanged: (v) => dailyCount = int.tryParse(v) ?? 1),
@@ -436,7 +436,7 @@ class _HabitEditorState extends State<_HabitEditor> {
       if (automation == HabitAutomation.healthConnectSteps && type == HabitType.quantitative) const Padding(padding: EdgeInsets.only(top: 4), child: Text('Cada dia usa a cobertura da própria leitura; dias sem dados não viram zero.', style: TextStyle(fontSize: 12))),
       SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Lembrete neste horário'), value: reminderEnabled, onChanged: (v) async { setState(() => reminderEnabled = v); if (v && reminder == null) reminder = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 20, minute: 0)); setState(() {}); }),
       if (reminderEnabled) TextButton.icon(onPressed: () async { final picked = await showTimePicker(context: context, initialTime: reminder ?? const TimeOfDay(hour: 20, minute: 0)); if (picked != null) setState(() => reminder = picked); }, icon: const Icon(Icons.alarm), label: Text(reminder?.format(context) ?? 'Escolher horário')),
-    ]))),
+    ])))),
     actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')), FilledButton(onPressed: _save, child: const Text('Salvar'))],
   );
 
@@ -446,7 +446,8 @@ class _HabitEditorState extends State<_HabitEditor> {
     final h = widget.initial;
     try {
       final schedule = HabitSchedule(cadence: cadence, targetCount: targetCount, weekdays: weekdays, intervalDays: interval, startDate: start);
-      final quantityTarget = type == HabitType.quantitative ? double.parse(target.text.replaceAll(',', '.')) : null;
+      final quantityTarget = type == HabitType.quantitative ? _parseQuantityTarget(target.text) : null;
+      if (type == HabitType.quantitative && quantityTarget == null) return;
       final habit = Habit(id: h?.id ?? 'habit:${DateTime.now().microsecondsSinceEpoch}', name: name.text, type: type, schedule: schedule, quantityTarget: quantityTarget, quantityUnit: type == HabitType.quantitative ? unit.text.trim() : null, dailyTargetCount: type == HabitType.positive ? dailyCount : 1, archivedAt: h?.archivedAt, category: category.text.trim().isEmpty ? 'Geral' : category.text.trim(), emoji: emoji.text.trim().isEmpty ? '✦' : emoji.text.trim(), color: color, position: h?.position ?? 0, automation: automation, exerciseTypes: h?.exerciseTypes ?? const {}, reminderEnabled: reminderEnabled && reminder != null, reminderHour: reminder?.hour, reminderMinute: reminder?.minute, createdAt: h?.createdAt);
       Navigator.pop(context, _HabitDraft(habit, steps.text.split('\n')));
     } on ArgumentError catch (e) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message.toString()))); }
@@ -478,29 +479,150 @@ class _NoteDialogState extends State<_NoteDialog> {
   @override Widget build(BuildContext context) => AlertDialog(title: const Text('Nota do dia'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: body, minLines: 2, maxLines: 6, decoration: const InputDecoration(labelText: 'Como foi?')), Row(children: [Expanded(child: Text(photo.text.isEmpty ? 'Nenhuma foto escolhida' : 'Foto anexada neste aparelho', maxLines: 2, overflow: TextOverflow.ellipsis)), TextButton.icon(onPressed: () async { try { final uri = await HabitPhotoPicker.pickLocalImage(); if (mounted && uri != null) setState(() => photo.text = uri); } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Não foi possível abrir as fotos.'))); } }, icon: const Icon(Icons.add_photo_alternate_outlined), label: const Text('Foto'))]), const Text('A referência fica no aparelho e não entra nos resumos agregados.', style: TextStyle(fontSize: 12))])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')), FilledButton(onPressed: () => Navigator.pop(context, _NoteDraft(body.text, photo.text)), child: const Text('Salvar'))]);
 }
 
-class FocusPanel extends StatefulWidget { const FocusPanel({super.key, required this.controller}); final HabitController controller; @override State<FocusPanel> createState() => _FocusPanelState(); }
+class FocusPanel extends StatefulWidget {
+  const FocusPanel({super.key, required this.controller});
+  final HabitController controller;
+  @override
+  State<FocusPanel> createState() => _FocusPanelState();
+}
+
 class _FocusPanelState extends State<FocusPanel> {
-  Timer? timer; DateTime? started; int seconds = 0, planned = 25, sessionPlanned = 25; bool running = false, completed = false;
+  Timer? timer;
+  DateTime? started;
+  int seconds = 0;
+  int planned = 25;
+  int sessionPlanned = 25;
+  bool running = false;
+  bool completed = false;
+  bool onBreak = false;
   HabitController get c => widget.controller;
-  @override void dispose() { timer?.cancel(); super.dispose(); }
-  void _start() { if (running) return; started ??= DateTime.now(); if (seconds == 0) sessionPlanned = planned; setState(() { running = true; if (seconds == 0) seconds = sessionPlanned * 60; }); timer = Timer.periodic(const Duration(seconds: 1), (_) { if (!mounted || !running) return; setState(() { seconds--; if (seconds <= 0) { seconds = 0; completed = true; running = false; timer?.cancel(); _finish(true); } }); }); }
-  Future<void> _finish(bool done) async { final begin = started; if (begin != null) await c.finishFocus(start: begin, end: DateTime.now(), minutes: sessionPlanned, completed: done); started = null; }
-  @override Widget build(BuildContext context) {
-    final cfg = c.focusConfig; planned = cfg['workMinutes'] ?? 25;
-    final today = c.focusHistory.where((r) => DateTime.parse(r['started_at']! as String).toLocal().year == DateTime.now().year && DateTime.parse(r['started_at']! as String).toLocal().month == DateTime.now().month && DateTime.parse(r['started_at']! as String).toLocal().day == DateTime.now().day).fold<int>(0, (sum, r) => sum + (r['completed'] == 1 ? r['planned_minutes']! as int : 0));
-    final displaySeconds = seconds == 0 && !running ? planned * 60 : seconds;
-    return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Expanded(child: Text('Foco e Pomodoro', style: Theme.of(context).textTheme.titleMedium)), IconButton(tooltip: 'Configurar foco', onPressed: _configure, icon: const Icon(Icons.tune))]),
-      Text('Meta do dia: $today / ${cfg['dailyGoalMinutes']} min'),
-      const SizedBox(height: 12), Center(child: Text('${(displaySeconds ~/ 60).toString().padLeft(2, '0')}:${(displaySeconds % 60).toString().padLeft(2, '0')}', style: Theme.of(context).textTheme.displaySmall)),
-      const SizedBox(height: 8), Wrap(spacing: 8, children: [FilledButton(onPressed: running ? null : _start, child: Text(running ? 'Em andamento' : 'Iniciar ${cfg['workMinutes']} min')), if (running) OutlinedButton(onPressed: () { setState(() { running = false; timer?.cancel(); }); }, child: const Text('Pausar')), if (started != null) TextButton(onPressed: () async { timer?.cancel(); setState(() { running = false; }); await _finish(false); setState(() { seconds = 0; }); }, child: const Text('Encerrar'))]),
-      if (completed) const Text('Sessão concluída. Bom trabalho.'),
-      TextButton(onPressed: () => setState(() => completed = false), child: Text('Intervalo: ${cfg['breakMinutes']} min • ${c.focusHistory.length} sessões no histórico')),
-    ])));
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
   }
+
+  void _startFocus() {
+    if (running) return;
+    started ??= DateTime.now();
+    if (seconds == 0) sessionPlanned = planned;
+    _startTimer(sessionPlanned, isBreak: false);
+  }
+
+  void _startBreak(int minutes) {
+    if (running) return;
+    _startTimer(minutes, isBreak: true);
+  }
+
+  void _startTimer(int minutes, {required bool isBreak}) {
+    setState(() {
+      running = true;
+      onBreak = isBreak;
+      if (!isBreak) completed = false;
+      if (seconds == 0) seconds = minutes * 60;
+    });
+    timer?.cancel();
+    timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || !running) return;
+      setState(() {
+        seconds--;
+        if (seconds <= 0) {
+          seconds = 0;
+          running = false;
+          timer?.cancel();
+          if (isBreak) {
+            onBreak = false;
+            completed = false;
+          } else {
+            completed = true;
+            unawaited(_finish(true));
+          }
+        }
+      });
+    });
+  }
+
+  Future<void> _finish(bool done) async {
+    final begin = started;
+    if (begin != null) {
+      await c.finishFocus(
+        start: begin,
+        end: DateTime.now(),
+        minutes: sessionPlanned,
+        completed: done,
+      );
+    }
+    started = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cfg = c.focusConfig;
+    planned = cfg['workMinutes'] ?? 25;
+    final now = DateTime.now();
+    final today = c.focusHistory.where((row) {
+      final startedAt = DateTime.parse(row['started_at']! as String).toLocal();
+      return startedAt.year == now.year && startedAt.month == now.month && startedAt.day == now.day;
+    }).fold<int>(
+      0,
+      (sum, row) => sum + (row['completed'] == 1 ? row['planned_minutes']! as int : 0),
+    );
+    final displaySeconds = seconds == 0 && !running
+        ? (onBreak ? (cfg['breakMinutes'] ?? 5) : planned) * 60
+        : seconds;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(child: Text('Foco e Pomodoro', style: Theme.of(context).textTheme.titleMedium)),
+              IconButton(tooltip: 'Configurar foco', onPressed: _configure, icon: const Icon(Icons.tune)),
+            ]),
+            Text('Meta do dia: $today / ${cfg['dailyGoalMinutes']} min'),
+            const SizedBox(height: 12),
+            Center(child: Text(
+              '${(displaySeconds ~/ 60).toString().padLeft(2, '0')}:${(displaySeconds % 60).toString().padLeft(2, '0')}',
+              style: Theme.of(context).textTheme.displaySmall,
+            )),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, children: [
+              FilledButton(
+                onPressed: running || onBreak ? null : _startFocus,
+                child: Text(running ? 'Em andamento' : seconds > 0 && !onBreak ? 'Retomar foco' : 'Iniciar ${cfg['workMinutes']} min'),
+              ),
+              if (completed || onBreak)
+                OutlinedButton(
+                  onPressed: running ? null : () => _startBreak(cfg['breakMinutes'] ?? 5),
+                  child: Text(running && onBreak ? 'Pausa em andamento' : seconds > 0 && onBreak ? 'Retomar pausa' : 'Iniciar pausa (${cfg['breakMinutes']} min)'),
+                ),
+              if (running)
+                OutlinedButton(onPressed: () { setState(() { running = false; timer?.cancel(); }); }, child: const Text('Pausar')),
+              if (started != null && !onBreak)
+                TextButton(onPressed: () async {
+                  timer?.cancel();
+                  setState(() { running = false; seconds = 0; completed = false; });
+                  await _finish(false);
+                }, child: const Text('Encerrar')),
+            ]),
+            if (completed) const Text('Sess\u00e3o conclu\u00edda. Bom trabalho.'),
+            Text('Pausa configurada: ${cfg['breakMinutes']} min • ${c.focusHistory.length} sess\u00f5es no hist\u00f3rico'),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _configure() async {
-    final values = await showDialog<Map<String, int>>(context: context, builder: (_) => _FocusSettings(config: c.focusConfig));
-    if (values != null) await c.saveFocus(goal: values['dailyGoalMinutes']!, work: values['workMinutes']!, pause: values['breakMinutes']!);
+    final values = await showDialog<Map<String, int>>(
+      context: context,
+      builder: (_) => _FocusSettings(config: c.focusConfig),
+    );
+    if (values != null) {
+      await c.saveFocus(goal: values['dailyGoalMinutes']!, work: values['workMinutes']!, pause: values['breakMinutes']!);
+    }
   }
 }
 
@@ -521,3 +643,8 @@ String _mapSummary(Map<String, int> values) {
   return entries.map((e) => '${e.key}: ${e.value}').join(' • ');
 }
 double _habitStrength(HabitStats stats) => (0.45 * stats.adherence + 0.30 * (stats.totalCompletions / 30).clamp(0.0, 1.0) + 0.25 * (stats.bestStreak / 21).clamp(0.0, 1.0)).clamp(0.0, 1.0);
+
+double? _parseQuantityTarget(String? raw) {
+  final value = double.tryParse((raw ?? '').replaceAll(',', '.'));
+  return value != null && value.isFinite && value > 0 ? value : null;
+}
