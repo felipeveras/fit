@@ -1,6 +1,8 @@
-# App Fit — Flutter foundation
+# App Fit — Flutter foundation, workouts and habits
 
-Implementation of the foundation in [GitHub #19](https://github.com/felipeveras/fit/issues/19).
+Implementation of the foundation in [GitHub #19](https://github.com/felipeveras/fit/issues/19),
+workouts in [#20](https://github.com/felipeveras/fit/issues/20), and habits in
+[#21](https://github.com/felipeveras/fit/issues/21).
 The Kotlin reference remains untouched in `../app`. No cutover until real-device
 Health Connect and manual Telegram parity are verified.
 
@@ -50,15 +52,31 @@ the bridge collects today's data again even when viewing a historical period.
   sum of weight or heart rate.
 - `features/telegram`: direct Dart HTTP and daily summary formatter.
 - `core/persistence`: SharedPreferences for simple settings, one versioned SQLite
-  database `app_fit.db` for app-owned records. Workout issue #20 includes the
-  exercise library, routines, live sessions, timers and progress records. No
-  health data replication.
-- `features/settings`: Telegram configuration, Health Connect settings, credits.
+  database `app_fit.db` at schema version 5 for app-owned records. It preserves
+  metadata and workout migrations v1–v4 before adding habits in v5. Workouts
+  include the exercise library, routines, live sessions, timers and progress
+  records; habits use the same database.
+- `features/habits`: manual and quantitative tracking, schedules, focus,
+  reminders, private notes and aggregate summaries. A durable workout consumer
+  connects at bootstrap and retries pending completions without duplicating
+  logs. Step and exercise imports use per-day Health Connect coverage; exercise
+  imports use one selected producer origin and independent permission.
+- Android habit adapters: system photo picker and persisted reminders, including
+  snooze, boot recovery, eligible-day goals and checklist-safe notification actions.
+- `features/settings`: Telegram configuration, Health Connect settings, optional
+  exercise permission and credits.
 
 App ID: `com.homefelipev.healthcoach.flutter`, deliberately separate to install
 alongside Kotlin. Grants and preferences are independent. No automatic import or
-autosend in Flutter yet. Coach and habits belong to separate issues.
+autosend in Flutter yet. Workouts and habits are integrated; the Coach service
+remains a separate issue, with aggregate habit APIs ready for its consumers.
 No upstream GymMane/Streak code or assets are included.
 
 Full contract, provenance and device checklist: [migration notes](../docs/flutter-migration.md).
-CI runs format, analyze, Flutter tests, APK build, native tests and lint.
+CI is configured to run format, analyze, Flutter tests, APK build, native tests
+and lint. Results for this integrated delivery must be recorded against its
+final commit; this document does not certify a completed validation run.
+
+Real-device Health Connect/Telegram parity and the release cutover remain
+pending for #19. See the [device checklist](../docs/flutter-device-validation.md)
+and [habit integration contract](../docs/habit-tracker-flutter.md).

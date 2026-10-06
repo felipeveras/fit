@@ -5,8 +5,8 @@
 Referência Kotlin: `c0148fa`, merge da automação diária (#7). O Android original
 continua em `app/`, sem alterações. O Flutter fica em `app_flutter/`.
 Não há cutover: dados Garmin/Health Sync e envio Telegram ainda precisam de
-validação no aparelho do proprietário. Treino, hábitos e Coach são entregas
-independentes (#20, #21 e #11).
+validação no aparelho do proprietário. Treinos (#20) e hábitos (#21) agora estão integrados ao Flutter.
+O serviço Coach permanece uma entrega separada (#11).
 
 Inventário real: sete métricas, permissões de dados/histórico/background,
 rechecagem ao retomar, paginação, seleção de origem, janela conservadora do
@@ -135,7 +135,24 @@ não declara uma licença nova para todo o repositório.
 - Workout publica `WorkoutDomainEvent` de forma durável após conclusão válida.
   O `id` do evento é a chave de idempotência; o sink assíncrono só confirma após
   persistência no consumidor. Sem consumidor conectado, ou após falha, o evento
-  permanece pendente para replay/retry. A conexão ao Habit Engine fica para a
-  integração conjunta com a issue #21.
+  permanece pendente para replay/retry. Na entrega integrada,
+  `WorkoutHabitConsumer` conecta esse outbox ao `HabitRepository` no bootstrap;
+  a confirmação aguarda a transação SQLite de hábitos.
+
+## Composição integrada #19/#20/#21
+
+O banco único `app_fit.db` está na versão 5: preserva metadados (v1),
+treinos (v2), timers/outbox (v3) e prescrições/histórico de PRs/retries (v4),
+e acrescenta hábitos (v5). O dashboard oferece treinos, aba de hábitos e
+Morning Brief. A importação de exercícios usa o bridge opcional, permissão
+independente de passos, uma origem selecionada e cobertura diária explícita.
+Falhas de leitura, permissão ou histórico não viram faltas artificiais.
+
+A validação central desta composição deve registrar resultados e SHA final;
+esta seção não declara os checks concluídos. O proprietário ainda não
+validou os dados reais e Telegram no aparelho físico. Essa pendência mantém
+a #19 aberta e impede tratar a migração como cutover de produção.
+Veja [contrato de hábitos](habit-tracker-flutter.md) e
+[checklist físico](flutter-device-validation.md).
 
 Referência técnica: [canais de plataforma Flutter](https://docs.flutter.dev/platform-integration/platform-channels).

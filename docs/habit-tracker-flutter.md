@@ -40,7 +40,9 @@ Switching origins replaces only automated exercise logs. Provider origin and
 record ID form a JSON composite key; replaying the same read is idempotent.
 Per-day permission/history/read errors remain uncovered, retain prior records,
 and never become zero or a missed opportunity. An empty provisional day is
-also excluded until the daily read is complete.
+also excluded until the daily read is complete. If no producer origin is known,
+the import does not infer missed workouts from an empty read.
+
 Step automation consumes the existing 7/30/90-day daily snapshots. It records
 the availability, completeness, and provisional state for each date. Only an
 available, complete daily value becomes a quantity log; no-data, missing,
@@ -56,21 +58,30 @@ daily habit reminders through AlarmManager. Reminder times, snooze timestamps,
 and action-created logs use the same `app_fit.db`; boot/resume scheduling reads
 the persisted snooze before creating the next alarm. Notification actions log
 one positive completion, one avoid occurrence, or one quarter of a quantitative
-target. Notification permission remains user-controlled.
+target. Incomplete checklists open the app instead of bypassing required steps.
+Weekly/monthly reminder targets exclude rest, vacation and ineligible initial
+period days; Health Connect targets use measured coverage. Automatic workout,
+step and exercise imports reconcile enabled reminders after persistence.
+Notification permission remains user-controlled.
 
 The database is local-first. There is no remote sync or competitor importer.
 No Streak source files or GPL-licensed implementation were copied into this
 feature.
 
-## Remaining integration and validation
+## Remaining consumers and validation
 
-- The #20 finalized-session producer and #19 exercise-event bridge are not in
-  this branch yet; the contract above is ready for their adapters.
-- The foundation has no Coach, Baseline, experiment, or contextual-intervention
-  feature to call the aggregate APIs from. Morning Brief is integrated in the
-  dashboard; the other methods are public integration points.
-- Photo selection, alarms, permissions, and notification actions require
-  Android device/emulator validation.
-- Central validation is pending by request: `flutter analyze`, `flutter test`,
-  and the Android bridge lint/checks must run after coordinated migrations are
-  combined. No checks were run while implementing this feature.
+The #20 finalized-session outbox and #19 exercise bridge are implemented and
+connected to the habit repository in the integrated Flutter application. They
+share `app_fit.db`; no additional habit database or producer adapter is needed.
+
+The Coach, experiment and contextual-intervention features do not yet consume
+the public aggregate APIs. Morning Brief is already composed into the dashboard;
+`baseline()` and `coachSummary()` are available integration points.
+
+Combined analysis, Flutter tests, Android tests/lint and APK/emulator validation
+must be recorded against the final integrated commit. This document describes
+the implemented behavior and does not claim that all checks are complete.
+Photo selection, permissions, alarms and notification actions need platform
+validation. Real producer data and authorized Telegram delivery on a physical
+device are still pending for #19; an emulator without producers cannot establish
+Health Connect parity or authorize the release cutover.
