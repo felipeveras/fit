@@ -7,6 +7,7 @@ import '../../core/health/health_exercise_repository.dart';
 import 'habit_reminder_bridge.dart';
 import 'habit_models.dart';
 import 'habit_repository.dart';
+import 'habit_automation.dart';
 
 class HabitController extends ChangeNotifier {
   HabitController(this.repository, {this.health});
@@ -83,6 +84,7 @@ class HabitController extends ChangeNotifier {
       // We intentionally do not gate step reads on the exercise-session permission.
       if (await health!.getAvailability() == HealthAvailability.available) {
         await repository.consumeHealthConnectSteps(await health!.getPeriod(90));
+        await rearmHabitReminders(repository);
         habits = await repository.loadProgress(selectedDate: selectedDate);
       }
     } catch (_) {
@@ -157,6 +159,7 @@ class HabitController extends ChangeNotifier {
         ?exerciseOrigin,
       }.toList()..sort();
       await repository.consumeHealthConnectExercises(period);
+      await rearmHabitReminders(repository);
 
       await refresh();
     } catch (_) {
