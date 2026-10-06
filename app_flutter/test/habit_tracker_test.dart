@@ -476,7 +476,9 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 80)),
         );
         await settleDatabaseUi(tester);
-        await tester.tap(find.byTooltip('Criar hábito'));
+        await tester.runAsync(() async {
+          await tester.tap(find.byTooltip('Criar hábito'));
+        });
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 80)),
         );
@@ -489,7 +491,9 @@ void main() {
         await tester.enterText(find.byType(TextFormField).at(0), 'Agua');
         await tester.enterText(find.byType(TextFormField).at(1), '2,5');
         await tester.enterText(find.byType(TextFormField).at(2), 'ml');
-        await tester.tap(find.text('Salvar'));
+        await tester.runAsync(() async {
+          await tester.tap(find.text('Salvar'));
+        });
         for (var attempt = 0; attempt < 100; attempt++) {
           await tester.pump();
           final saved = await tester.runAsync(
