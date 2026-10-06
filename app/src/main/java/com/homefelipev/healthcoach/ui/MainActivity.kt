@@ -32,9 +32,11 @@ class MainActivity : ComponentActivity() {
             val model: HealthConnectPermissionsViewModel = viewModel()
             val readModel: HealthReadViewModel = viewModel()
             val telegramModel: TelegramViewModel = viewModel()
+            val autoSendModel: AutoSendViewModel = viewModel()
             val state by model.state.collectAsStateWithLifecycle()
             val readState by readModel.state.collectAsStateWithLifecycle()
             val telegramState by telegramModel.state.collectAsStateWithLifecycle()
+            val autoSendState by autoSendModel.state.collectAsStateWithLifecycle()
             val scope = rememberCoroutineScope()
             val permissionLauncher = rememberLauncherForActivityResult(
                 PermissionController.createRequestPermissionResultContract(),
@@ -132,6 +134,17 @@ class MainActivity : ComponentActivity() {
                             }
                             telegramMessage?.let {
                                 Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                            }
+                            HorizontalDivider()
+                            Text("Envio diário automático", style = MaterialTheme.typography.titleMedium)
+                            Text("Envia o resumo uma vez por dia, por volta das ${autoSendState.hour}h, sem precisar abrir o app. O Android pode atrasar a execução.")
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Switch(
+                                    checked = autoSendState.enabled,
+                                    onCheckedChange = autoSendModel::setEnabled,
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(if (autoSendState.enabled) "Ativado" else "Desativado")
                             }
                         }
                         telegramState.error?.let { Text(it, color = MaterialTheme.colorScheme.error,

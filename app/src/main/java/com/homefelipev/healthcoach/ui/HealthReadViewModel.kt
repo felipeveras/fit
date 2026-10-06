@@ -8,6 +8,7 @@ import com.homefelipev.healthcoach.data.healthconnect.DefaultHealthConnectReposi
 import com.homefelipev.healthcoach.data.healthconnect.HealthMetric
 import com.homefelipev.healthcoach.data.healthconnect.HealthMetricSnapshot
 import com.homefelipev.healthcoach.data.healthconnect.MetricSourcePolicy
+import com.homefelipev.healthcoach.data.telegram.DailyHealthSummary
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId

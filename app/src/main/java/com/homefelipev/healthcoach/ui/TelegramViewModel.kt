@@ -6,8 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.homefelipev.healthcoach.data.healthconnect.AndroidHealthConnectDataSource
 import com.homefelipev.healthcoach.data.healthconnect.DefaultHealthConnectRepository
 import com.homefelipev.healthcoach.data.healthconnect.HealthConnectRepository
-import com.homefelipev.healthcoach.data.healthconnect.HealthMetric
-import com.homefelipev.healthcoach.data.healthconnect.MetricSourcePolicy
+import com.homefelipev.healthcoach.data.telegram.DailyHealthSummary
 import com.homefelipev.healthcoach.data.telegram.HealthSummarySender
 import java.time.LocalDate
 import java.time.ZoneId
@@ -41,11 +40,7 @@ class TelegramViewModel(application: Application) : AndroidViewModel(application
                 val reading = withContext(Dispatchers.IO) {
                     val zone = ZoneId.systemDefault()
                     val date = LocalDate.now(zone)
-                    val snapshots = HealthMetric.entries.flatMap { metric ->
-                        val policy = if (metric.isPlatformAggregated) MetricSourcePolicy.PlatformAggregate
-                        else MetricSourcePolicy.SingleOrigin(null)
-                        repository.readSnapshot(metric, listOf(date), zone, policy)
-                    }
+                    val snapshots = DailyHealthSummary.collect(repository, date, zone)
                     date to snapshots
                 }
                 sender.send(reading.first, reading.second)
