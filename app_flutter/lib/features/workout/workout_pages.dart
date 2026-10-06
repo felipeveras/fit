@@ -1720,8 +1720,8 @@ class _ExerciseSessionCard extends StatelessWidget {
               detail.exercise.maxReps != null)
             Text(
               'Meta: ${detail.exercise.plannedSets} séries · '
-              '${detail.exercise.minReps}â€“${detail.exercise.maxReps} reps '
-              'Â· ${detail.sets.length}/${detail.exercise.plannedSets} registradas',
+              '${detail.exercise.minReps}–${detail.exercise.maxReps} reps '
+              '· ${detail.sets.length}/${detail.exercise.plannedSets} registradas',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           if (detail.exercise.notes?.isNotEmpty == true)
