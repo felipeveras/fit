@@ -1,6 +1,8 @@
 import 'package:path/path.dart' as path;
 import 'package:sqflite/sqflite.dart';
 
+import '../../features/habits/habit_schema.dart';
+
 /// One database for app-owned records; never a mirror of Health Connect.
 class AppDatabase {
   AppDatabase({DatabaseFactory? factory})
@@ -15,7 +17,7 @@ class AppDatabase {
         databasePath ??
             path.join(await _factory.getDatabasesPath(), 'app_fit.db'),
         options: OpenDatabaseOptions(
-          version: 1,
+          version: 2,
           onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
           onCreate: (db, version) => _migrate(db, 0, version),
           onUpgrade: _migrate,
@@ -36,6 +38,9 @@ class AppDatabase {
         'key': 'created_at',
         'value': DateTime.now().toUtc().toIso8601String(),
       });
+    }
+    if (from < 2 && to >= 2) {
+      await createHabitSchema(db);
     }
   }
 

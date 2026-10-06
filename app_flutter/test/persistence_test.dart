@@ -10,14 +10,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();
   test(
-    'single versioned database survives reopen, without health tables',
+    'single versioned database migrates habits and survives reopen',
     () async {
       final directory = await Directory.systemTemp.createTemp('app-fit-test');
       final databasePath = '${directory.path}/app_fit.db';
       final store = AppDatabase(factory: databaseFactoryFfi);
       try {
         final db = await store.open(databasePath: databasePath);
-        expect(await db.getVersion(), 1);
+        expect(await db.getVersion(), 2);
         final metadata = await db.query('app_metadata');
         expect(metadata.single['key'], 'created_at');
         await store.close();
@@ -26,10 +26,9 @@ void main() {
         final tables = await reopened.rawQuery(
           "SELECT name FROM sqlite_master WHERE type='table'",
         );
-        expect(
-          tables.map((t) => t['name']),
-          isNot(contains('health_snapshots')),
-        );
+        expect(tables.map((t) => t['name']), contains('habits'));
+        expect(tables.map((t) => t['name']), contains('habit_completions'));
+        expect(tables.map((t) => t['name']), isNot(contains('health_snapshots')));
       } finally {
         await store.close();
         await directory.delete(recursive: true);

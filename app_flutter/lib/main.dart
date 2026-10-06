@@ -59,7 +59,7 @@ class _BootstrapState extends State<_Bootstrap> {
 
   @override
   Widget build(BuildContext context) => _controller != null
-      ? AppFit(controller: _controller!)
+      ? AppFit(controller: _controller!, database: _database)
       : MaterialApp(
           home: Scaffold(
             body: Center(

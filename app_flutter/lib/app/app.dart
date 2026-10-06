@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import '../core/persistence/app_database.dart';
 import '../features/dashboard/dashboard_controller.dart';
 import '../features/dashboard/dashboard_page.dart';
 
 class AppFit extends StatelessWidget {
-  const AppFit({super.key, required this.controller});
+  const AppFit({super.key, required this.controller, required this.database});
   final DashboardController controller;
+  final AppDatabase database;
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'App Fit',
@@ -27,6 +29,6 @@ class AppFit extends StatelessWidget {
         border: OutlineInputBorder(),
       ),
     ),
-    home: DashboardPage(controller: controller),
+    home: DashboardPage(controller: controller, database: database),
   );
 }
