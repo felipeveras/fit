@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_fit/app/app.dart';
 import 'package:app_fit/core/health/health_repository.dart';
+import 'package:app_fit/core/persistence/app_database.dart';
 import 'package:app_fit/core/persistence/app_preferences.dart';
 import 'package:app_fit/features/dashboard/dashboard_controller.dart';
 import 'package:app_fit/features/telegram/telegram_service.dart';
@@ -139,7 +140,7 @@ void main() {
   ) async {
     final client = MockClient((_) async => http.Response('{"ok":true}', 200));
     final c = DashboardController(health, prefs, TelegramService(client));
-    await tester.pumpWidget(AppFit(controller: c));
+    await tester.pumpWidget(AppFit(controller: c, database: AppDatabase()));
     await tester.pumpAndSettle();
     expect(find.text('Seu ritmo, hoje'), findsOneWidget);
     expect(find.text('Passos'), findsOneWidget);

@@ -1,9 +1,13 @@
 package com.homefelipev.healthcoach.flutter
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
+import androidx.activity.result.contract.ActivityResultContracts
 import com.homefelipev.healthcoach.data.healthconnect.*
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -16,6 +20,9 @@ import kotlinx.coroutines.*
 class MainActivity : FlutterFragmentActivity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var channel: MethodChannel
+    private lateinit var habitChannel: MethodChannel
+    private var photoPickerResult: MethodChannel.Result? = null
+    private var notificationPermissionResult: MethodChannel.Result? = null
     private val calls = mutableSetOf<MethodChannel.Result>()
     private var permissionResult: MethodChannel.Result? = null
     private var permissionKind: String? = null
@@ -34,11 +41,80 @@ class MainActivity : FlutterFragmentActivity() {
         permissionKind = null
         execute(pending) { if (exercise) exercisePermissions() else permissions() }
     }
+    private val imagePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val pending = photoPickerResult ?: return@registerForActivityResult
+        photoPickerResult = null
+        if (uri == null) {
+            pending.success(null)
+        } else {
+            try {
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (_: SecurityException) {
+                // Some providers return a temporary URI; the selected reference is still useful now.
+            }
+            pending.success(uri.toString())
+        }
+    }
+    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val pending = notificationPermissionResult ?: return@registerForActivityResult
+        notificationPermissionResult = null
+        pending.success(granted)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.homefelipev.healthcoach/health")
         channel.setMethodCallHandler(::handle)
+        habitChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.homefelipev.healthcoach/habits")
+        habitChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "pickHabitPhoto" -> {
+                    if (photoPickerResult != null) result.error("picker_in_progress", "A photo picker is already open", null)
+                    else {
+                        photoPickerResult = result
+                        imagePicker.launch(arrayOf("image/*"))
+                    }
+                }
+                "requestHabitNotifications" -> {
+                    if (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                        result.success(true)
+                    } else if (notificationPermissionResult != null) {
+                        result.error("permission_request_in_progress", "Notification permission request is pending", null)
+                    } else {
+                        notificationPermissionResult = result
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+                "syncHabitReminder" -> {
+                    val habitId = call.argument<String>("habitId")
+                    val enabled = call.argument<Boolean>("enabled")
+                    if (habitId.isNullOrBlank() || enabled == null) result.error("invalid_arguments", "Habit id and enabled state are required", null)
+                    else {
+                        if (enabled) HabitReminderScheduler.refresh(this, habitId) else HabitReminderScheduler.cancel(this, habitId)
+                        result.success(true)
+                    }
+                }
+                "shareHabitSummary" -> {
+                    val title = call.argument<String>("title").orEmpty()
+                    val text = call.argument<String>("text").orEmpty()
+                    if (text.isBlank()) result.error("invalid_arguments", "Share text is required", null)
+                    else {
+                        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, title)
+                            putExtra(Intent.EXTRA_TEXT, text)
+                        }, title.ifBlank { "Compartilhar hábito" }))
+                        result.success(true)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        HabitReminderScheduler.refreshAll(this)
     }
 
     private fun handle(call: MethodCall, result: MethodChannel.Result) {
@@ -166,6 +242,11 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         channel.setMethodCallHandler(null)
+        habitChannel.setMethodCallHandler(null)
+        photoPickerResult?.error("bridge_detached", "Photo picker was closed", null)
+        photoPickerResult = null
+        notificationPermissionResult?.error("bridge_detached", "Permission request was closed", null)
+        notificationPermissionResult = null
         scope.cancel()
         permissionResult = null
         permissionKind = null

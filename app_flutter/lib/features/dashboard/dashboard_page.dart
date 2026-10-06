@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/health/health_repository.dart';
+import '../../core/persistence/app_database.dart';
+import '../habits/habit_morning_brief.dart';
+import '../habits/habit_tracker_page.dart';
 import '../settings/settings_page.dart';
 import '../workout/workout_pages.dart';
 import '../workout/workout_services.dart';
@@ -9,9 +12,10 @@ import '../telegram/telegram_service.dart';
 import 'dashboard_controller.dart';
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key, required this.controller, this.workouts, this.modules = const []});
+  const DashboardPage({super.key, required this.controller, required this.database, this.workouts, this.modules = const []});
   final List<Widget> modules;
   final DashboardController controller;
+  final AppDatabase database;
   final WorkoutServices? workouts;
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -20,6 +24,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage>
     with WidgetsBindingObserver {
   DashboardController get c => widget.controller;
+  int _selectedTab = 0;
   @override
   void initState() {
     super.initState();
@@ -43,7 +48,7 @@ class _DashboardPageState extends State<DashboardPage>
     listenable: c,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
-        title: const Text('App Fit'),
+        title: Text(_selectedTab == 0 ? 'App Fit' : 'Hábitos'),
         actions: [
           IconButton(
             tooltip: 'Configurações',
@@ -62,7 +67,7 @@ class _DashboardPageState extends State<DashboardPage>
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: _selectedTab == 0 ? RefreshIndicator(
         onRefresh: c.refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -178,15 +183,21 @@ class _DashboardPageState extends State<DashboardPage>
             const SizedBox(height: 28),
             const Divider(),
             const SizedBox(height: 12),
-            Text(
-              'Mais do seu dia',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('Hábitos em foco', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
+            HabitMorningBrief(database: widget.database),
             ...widget.modules,
             const SizedBox(height: 24),
           ],
         ),
+      ) : HabitTrackerPage(database: widget.database, health: c.health),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedTab,
+        onDestinationSelected: (index) => setState(() => _selectedTab = index),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Resumo'),
+          NavigationDestination(icon: Icon(Icons.checklist_outlined), selectedIcon: Icon(Icons.checklist), label: 'Hábitos'),
+        ],
       ),
     ),
   );

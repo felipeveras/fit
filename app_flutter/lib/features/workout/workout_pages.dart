@@ -1325,6 +1325,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
         await SystemSound.play(SystemSoundType.alert);
       } catch (_) {}
     }
+    if (!mounted) return;
     setState(() {
       _rest = rest;
       _now = DateTime.now();
@@ -1666,6 +1667,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   Future<void> _skipRest() async {
     await widget.services.sessions.skipRestTimer(widget.sessionId);
+    _alerting = false;
     _load();
   }
 }

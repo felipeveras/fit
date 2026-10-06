@@ -11,14 +11,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();
   test(
-    'single versioned database survives reopen, without health tables',
+    'single versioned database migrates habits and survives reopen',
     () async {
       final directory = await Directory.systemTemp.createTemp('app-fit-test');
       final databasePath = '${directory.path}/app_fit.db';
       final store = AppDatabase(factory: databaseFactoryFfi);
       try {
         final db = await store.open(databasePath: databasePath);
-        expect(await db.getVersion(), 4);
+        expect(await db.getVersion(), 5);
         final metadata = await db.query('app_metadata');
         expect(metadata.single['key'], 'created_at');
         await store.close();
@@ -49,6 +49,9 @@ void main() {
             'personal_record_achievements',
           ]),
         );
+        expect(tables.map((t) => t['name']), contains('habits'));
+        expect(tables.map((t) => t['name']), contains('habit_completions'));
+        expect(tables.map((t) => t['name']), isNot(contains('health_snapshots')));
       } finally {
         await store.close();
         await directory.delete(recursive: true);
@@ -83,7 +86,7 @@ void main() {
         final store = AppDatabase(factory: databaseFactoryFfi);
         try {
           final upgraded = await store.open(databasePath: databasePath);
-          expect(await upgraded.getVersion(), 4);
+          expect(await upgraded.getVersion(), 5);
           expect(await upgraded.query('app_metadata'), [
             {'key': 'created_at', 'value': '2026-01-02T03:04:05.000Z'},
           ]);
@@ -129,7 +132,7 @@ void main() {
       final store = AppDatabase(factory: databaseFactoryFfi);
       try {
         final upgraded = await store.open(databasePath: databasePath);
-        expect(await upgraded.getVersion(), 4);
+        expect(await upgraded.getVersion(), 5);
         expect(
           (await upgraded.query('workout_routines')).single['name'],
           'Treino preservado',
@@ -246,7 +249,7 @@ void main() {
         final store = AppDatabase(factory: databaseFactoryFfi);
         try {
           final upgraded = await store.open(databasePath: databasePath);
-          expect(await upgraded.getVersion(), 4);
+          expect(await upgraded.getVersion(), 5);
           final history = await upgraded.query(
             'personal_record_achievements',
             where: "record_type = 'top_load'",
@@ -320,7 +323,7 @@ void main() {
         final store = AppDatabase(factory: databaseFactoryFfi);
         try {
           final upgraded = await store.open(databasePath: databasePath);
-          expect(await upgraded.getVersion(), 4);
+          expect(await upgraded.getVersion(), 5);
           expect(
             (await upgraded.query('workout_exercises')).single['exercise_id'],
             isNull,
