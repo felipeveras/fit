@@ -3,12 +3,15 @@ import 'package:intl/intl.dart';
 
 import '../../core/health/health_repository.dart';
 import '../settings/settings_page.dart';
+import '../workout/workout_pages.dart';
+import '../workout/workout_services.dart';
 import '../telegram/telegram_service.dart';
 import 'dashboard_controller.dart';
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key, required this.controller});
+  const DashboardPage({super.key, required this.controller, this.workouts});
   final DashboardController controller;
+  final WorkoutServices? workouts;
   @override
   State<DashboardPage> createState() => _DashboardPageState();
 }
@@ -75,6 +78,10 @@ class _DashboardPageState extends State<DashboardPage>
             ),
             const SizedBox(height: 8),
             const Text('Saúde e movimento em um só lugar.'),
+            if (widget.workouts != null) ...[
+              const SizedBox(height: 20),
+              _workoutCard(context, widget.workouts!),
+            ],
             const SizedBox(height: 24),
             Row(
               children: [
@@ -176,7 +183,7 @@ class _DashboardPageState extends State<DashboardPage>
             ),
             const SizedBox(height: 8),
             const Text(
-              'Treinos, hábitos, bem-estar e Coach chegarão nas próximas etapas.',
+              'Hábitos, bem-estar e Coach chegarão nas próximas etapas.',
             ),
             const SizedBox(height: 24),
           ],
@@ -198,6 +205,45 @@ class _DashboardPageState extends State<DashboardPage>
           ),
         ),
       );
+
+  Widget _workoutCard(BuildContext context, WorkoutServices services) => Card(
+    clipBehavior: Clip.antiAlias,
+    color: Theme.of(context).colorScheme.primaryContainer,
+    child: InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => WorkoutsPage(services: services),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              child: const Icon(Icons.fitness_center),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Treinos',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  SizedBox(height: 3),
+                  Text('Rotinas, sessão ativa e progresso'),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 17),
+          ],
+        ),
+      ),
+    ),
+  );
 
   List<Widget> _dailySections(
     BuildContext context,

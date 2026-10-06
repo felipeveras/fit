@@ -3,10 +3,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../features/dashboard/dashboard_controller.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/workout/workout_services.dart';
 
 class AppFit extends StatelessWidget {
-  const AppFit({super.key, required this.controller});
+  const AppFit({super.key, required this.controller, this.workouts});
   final DashboardController controller;
+  final WorkoutServices? workouts;
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'App Fit',
@@ -27,6 +29,6 @@ class AppFit extends StatelessWidget {
         border: OutlineInputBorder(),
       ),
     ),
-    home: DashboardPage(controller: controller),
+    home: DashboardPage(controller: controller, workouts: workouts),
   );
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
@@ -8,9 +10,11 @@ import 'core/persistence/app_database.dart';
 import 'core/persistence/app_preferences.dart';
 import 'features/dashboard/dashboard_controller.dart';
 import 'features/telegram/telegram_service.dart';
+import 'features/workout/workout_services.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('pt_BR');
   runApp(const _Bootstrap());
 }
 
@@ -22,6 +26,7 @@ class _Bootstrap extends StatefulWidget {
 
 class _BootstrapState extends State<_Bootstrap> {
   final _database = AppDatabase();
+  late final _workouts = WorkoutServices(_database);
   final _client = http.Client();
   DashboardController? _controller;
   bool _failed = false;
@@ -35,6 +40,8 @@ class _BootstrapState extends State<_Bootstrap> {
     setState(() => _failed = false);
     try {
       await _database.open();
+      await _workouts.replayPendingEvents();
+      await _recoverPickedPhoto();
       final preferences = AppPreferences(await SharedPreferences.getInstance());
       if (!mounted) return;
       setState(
@@ -49,9 +56,25 @@ class _BootstrapState extends State<_Bootstrap> {
     }
   }
 
+  Future<void> _recoverPickedPhoto() async {
+    try {
+      final lost = await ImagePicker().retrieveLostData();
+      final files = lost.files;
+      if (files != null && files.isNotEmpty) {
+        await _workouts.progress.importProgressPhoto(
+          files.first.path,
+          notes: 'Foto recuperada após interrupção do aplicativo',
+        );
+      }
+    } catch (_) {
+      // Photo recovery is best effort and must not block opening the dashboard.
+    }
+  }
+
   @override
   void dispose() {
     _controller?.dispose();
+    _workouts.dispose();
     _client.close();
     _database.close();
     super.dispose();
@@ -59,7 +82,7 @@ class _BootstrapState extends State<_Bootstrap> {
 
   @override
   Widget build(BuildContext context) => _controller != null
-      ? AppFit(controller: _controller!)
+      ? AppFit(controller: _controller!, workouts: _workouts)
       : MaterialApp(
           home: Scaffold(
             body: Center(
