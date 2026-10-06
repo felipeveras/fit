@@ -5,6 +5,7 @@ import 'package:app_fit/core/health/health_repository.dart';
 import 'package:app_fit/core/persistence/app_database.dart';
 import 'package:app_fit/core/persistence/app_preferences.dart';
 import 'package:app_fit/features/dashboard/dashboard_controller.dart';
+import 'package:app_fit/features/habits/habit_repository.dart';
 import 'package:app_fit/features/telegram/telegram_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,13 +115,18 @@ void main() {
   ) async {
     final client = MockClient((_) async => http.Response('{"ok":true}', 200));
     final c = DashboardController(health, prefs, TelegramService(client));
-    await tester.pumpWidget(
-      AppFit(
-        controller: c,
-        database: AppDatabase(factory: databaseFactoryFfi),
-        dashboardModules: const [Text('Módulo de hábitos integrado')],
-      ),
-    );
+    final database = AppDatabase(factory: databaseFactoryFfi);
+    await tester.runAsync(() async {
+      await database.open(databasePath: inMemoryDatabasePath);
+      await tester.pumpWidget(
+        AppFit(
+          controller: c,
+          database: database,
+          dashboardModules: const [Text('Módulo de hábitos integrado')],
+        ),
+      );
+      await HabitRepository(database).morningBrief();
+    });
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Módulo de hábitos integrado'),
@@ -134,6 +140,7 @@ void main() {
       findsNothing,
     );
     await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(() => database.close());
     c.dispose();
     client.close();
   });
@@ -143,12 +150,12 @@ void main() {
   ) async {
     final client = MockClient((_) async => http.Response('{"ok":true}', 200));
     final c = DashboardController(health, prefs, TelegramService(client));
-    await tester.pumpWidget(
-      AppFit(
-        controller: c,
-        database: AppDatabase(factory: databaseFactoryFfi),
-      ),
-    );
+    final database = AppDatabase(factory: databaseFactoryFfi);
+    await tester.runAsync(() async {
+      await database.open(databasePath: inMemoryDatabasePath);
+      await tester.pumpWidget(AppFit(controller: c, database: database));
+      await HabitRepository(database).morningBrief();
+    });
     await tester.pumpAndSettle();
     expect(find.text('Seu ritmo, hoje'), findsOneWidget);
     expect(find.text('Passos'), findsOneWidget);
@@ -158,6 +165,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Token do bot'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(() => database.close());
     c.dispose();
     client.close();
   });
