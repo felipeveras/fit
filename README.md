@@ -1,14 +1,36 @@
 # App Fit
 
+## Flutter migration (#19)
+
+The migration foundation lives in [`app_flutter/`](app_flutter/README.md):
+Flutter dashboard → versioned Kotlin bridge → existing Health Connect reader.
+It includes today's metrics, daily snapshots for 7/30/90 days, permission handling,
+manual Telegram sending in Dart, local preferences and one SQLite database for
+future app-owned records. No AI configuration or backend is needed.
+
+The native app remains the functional reference until real-device parity is
+validated. Flutter installs alongside it with a separate application ID; daily
+autosend remains in Kotlin during this phase. See the [inventory, bridge contract,
+storage strategy and cutover checklist](docs/flutter-migration.md).
+
+```powershell
+cd app_flutter
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --debug
+flutter run
+```
+
 Personal Android app that reads health metrics from Health Connect and sends a daily summary directly to a private Telegram chat.
 
-Target architecture:
+Current Kotlin reference:
 
 ```
 Garmin → Health Sync → Health Connect → App Fit (Android/Kotlin) → Telegram Bot API → private chat/topic
 ```
 
-## Android app
+## Android app (Kotlin reference)
 
 The Android scaffold in `app/` uses Kotlin, Jetpack Compose, and Health Connect client 1.1.0. Open the repository in Android Studio with Android SDK 36 installed. Health Connect must be available on the device; on Android 13 and earlier, install or update its provider.
 
