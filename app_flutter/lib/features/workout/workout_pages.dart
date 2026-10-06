@@ -1569,7 +1569,8 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
                         const Text('Duração da sessão'),
-                        if (_rest != null && restRemaining > Duration.zero) ...[
+                        if (_rest != null &&
+                            (restRemaining > Duration.zero || _alerting)) ...[
                           const SizedBox(height: 14),
                           Row(
                             children: [
@@ -1659,6 +1660,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage>
 
   Future<void> _adjustRest(Duration delta) async {
     await widget.services.sessions.adjustRestTimer(widget.sessionId, delta);
+    if (delta > Duration.zero) _alerting = false;
     _load();
   }
 

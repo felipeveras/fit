@@ -142,13 +142,14 @@ void main() {
         );
         expect(
           setColumns.map((column) => column['name']),
-          containsAll([
-            'duration_seconds',
-            'distance_meters',
-            'planned_sets',
-            'min_reps',
-            'max_reps',
-          ]),
+          containsAll(['duration_seconds', 'distance_meters']),
+        );
+        final exerciseColumns = await upgraded.rawQuery(
+          'PRAGMA table_info(workout_exercises)',
+        );
+        expect(
+          exerciseColumns.map((column) => column['name']),
+          containsAll(['planned_sets', 'min_reps', 'max_reps']),
         );
         final eventColumns = await upgraded.rawQuery(
           'PRAGMA table_info(workout_domain_events)',
@@ -254,6 +255,77 @@ void main() {
           expect(history, hasLength(2));
           expect(history.map((row) => row['session_id']), [1, 2]);
           expect(history.map((row) => row['value']), [60.0, 80.0]);
+        } finally {
+          await store.close();
+        }
+      } finally {
+        await directory.delete(recursive: true);
+      }
+    },
+  );
+  test(
+    'v3 migration tolerates deleted exercises in completed sessions',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'app-fit-v3-deleted-exercise',
+      );
+      final databasePath = '${directory.path}/app_fit.db';
+      try {
+        final oldDatabase = await databaseFactoryFfi.openDatabase(
+          databasePath,
+          options: OpenDatabaseOptions(
+            version: 3,
+            onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
+            onCreate: (db, _) async {
+              await db.execute(
+                'CREATE TABLE app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+              );
+              await createWorkoutSchema(db);
+              await upgradeWorkoutSchema(db);
+              final exerciseId = await db.insert('exercise_definitions', {
+                'name': 'Exercício personalizado removido',
+                'muscle_group': 'chest',
+                'is_custom': 1,
+              });
+              final sessionId = await db.insert('workout_sessions', {
+                'status': 'completed',
+                'started_at': '2026-01-02T03:00:00.000Z',
+                'completed_at': '2026-01-02T03:30:00.000Z',
+              });
+              final workoutExerciseId = await db.insert('workout_exercises', {
+                'session_id': sessionId,
+                'exercise_id': exerciseId,
+                'exercise_name': 'Exercício personalizado removido',
+                'position': 0,
+                'muscle_group': 'chest',
+              });
+              await db.insert('workout_sets', {
+                'workout_exercise_id': workoutExerciseId,
+                'position': 0,
+                'reps': 8,
+                'weight_kg': 40.0,
+                'set_type': 'working',
+                'completed_at': '2026-01-02T03:25:00.000Z',
+              });
+              await db.delete(
+                'exercise_definitions',
+                where: 'id = ?',
+                whereArgs: [exerciseId],
+              );
+            },
+          ),
+        );
+        await oldDatabase.close();
+
+        final store = AppDatabase(factory: databaseFactoryFfi);
+        try {
+          final upgraded = await store.open(databasePath: databasePath);
+          expect(await upgraded.getVersion(), 4);
+          expect(
+            (await upgraded.query('workout_exercises')).single['exercise_id'],
+            isNull,
+          );
+          expect(await upgraded.query('personal_record_achievements'), isEmpty);
         } finally {
           await store.close();
         }

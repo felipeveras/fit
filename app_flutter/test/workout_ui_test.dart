@@ -59,72 +59,102 @@ void main() {
         home: ActiveWorkoutPage(services: services, sessionId: sessionId),
       ),
     );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
     for (var i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
+  }
+
+  Future<void> unmountWorkoutPage(WidgetTester tester) async {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
   }
 
   testWidgets('−15 s subtracts time through the active workout UI', (
     tester,
   ) async {
     await pumpWorkoutPage(tester);
-    expect(find.text('−15 s'), findsOneWidget);
-    expect(find.byTooltip('Pular descanso'), findsOneWidget);
+    try {
+      expect(find.text('−15 s'), findsOneWidget);
+      expect(find.byTooltip('Pular descanso'), findsOneWidget);
 
-    await tester.tap(find.text('−15 s'));
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 40)),
-    );
-    await tester.pump();
+      await tester.tap(find.text('−15 s'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 40)),
+      );
+      await tester.pump();
 
-    final timer = await services.sessions.getRestTimer(sessionId);
-    expect(timer, isNotNull);
-    expect(timer!.isPaused, isFalse);
-    expect(timer.remaining.inSeconds, inInclusiveRange(44, 45));
+      final timer = await tester.runAsync(
+        () => services.sessions.getRestTimer(sessionId),
+      );
+      expect(timer, isNotNull);
+      expect(timer!.isPaused, isFalse);
+      expect(timer.remaining.inSeconds, inInclusiveRange(44, 45));
+    } finally {
+      await unmountWorkoutPage(tester);
+    }
   });
 
   testWidgets('−15 s preserves a paused timer and skip is separate', (
     tester,
   ) async {
-    await services.sessions.pauseRestTimer(sessionId);
+    await tester.runAsync(
+      () => services.sessions.pauseRestTimer(sessionId),
+    );
     await pumpWorkoutPage(tester);
+    try {
+      await tester.tap(find.text('−15 s'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 40)),
+      );
+      await tester.pump();
+      var timer = await tester.runAsync(
+        () => services.sessions.getRestTimer(sessionId),
+      );
+      expect(timer!.isPaused, isTrue);
+      expect(timer.remaining.inSeconds, inInclusiveRange(44, 45));
 
-    await tester.tap(find.text('−15 s'));
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 40)),
-    );
-    await tester.pump();
-    var timer = await services.sessions.getRestTimer(sessionId);
-    expect(timer!.isPaused, isTrue);
-    expect(timer.remaining.inSeconds, inInclusiveRange(44, 45));
-
-    await tester.tap(find.byTooltip('Pular descanso'));
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 40)),
-    );
-    timer = await services.sessions.getRestTimer(sessionId);
-    expect(timer!.isPaused, isTrue);
-    expect(timer.remaining, Duration.zero);
+      await tester.tap(find.byTooltip('Pular descanso'));
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 40)),
+      );
+      timer = await tester.runAsync(
+        () => services.sessions.getRestTimer(sessionId),
+      );
+      expect(timer!.isPaused, isTrue);
+      expect(timer.remaining, Duration.zero);
+    } finally {
+      await unmountWorkoutPage(tester);
+    }
   });
 
   testWidgets(
     'set entry shows the routine target and pre-fills its rep floor',
     (tester) async {
       await pumpWorkoutPage(tester);
-      await tester.tap(find.text('+ Série'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+      try {
+        await tester.tap(find.text('+ Série'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
 
-      expect(find.text('Meta: 1/3 séries · 6–10 reps'), findsOneWidget);
-      expect(
-        find.byWidgetPredicate(
-          (widget) => widget is TextField && widget.controller?.text == '6',
-        ),
-        findsOneWidget,
-      );
+        expect(find.text('Meta: 1/3 séries · 6–10 reps'), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (widget) => widget is TextField && widget.controller?.text == '6',
+          ),
+          findsOneWidget,
+        );
+      } finally {
+        await unmountWorkoutPage(tester);
+      }
     },
   );
 }

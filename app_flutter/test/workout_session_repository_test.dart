@@ -5,6 +5,7 @@ import 'package:app_fit/features/workout/workout_models.dart';
 import 'package:app_fit/features/workout/workout_progress_repository.dart';
 import 'package:app_fit/features/workout/workout_repository.dart';
 import 'package:app_fit/features/workout/workout_session_repository.dart';
+import 'package:app_fit/features/workout/workout_services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 

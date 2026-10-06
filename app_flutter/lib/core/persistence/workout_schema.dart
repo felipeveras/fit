@@ -199,7 +199,8 @@ Future<void> upgradeWorkoutSchemaV4(DatabaseExecutor db) async {
     FROM workout_sets ws
     JOIN workout_exercises we ON we.id = ws.workout_exercise_id
     JOIN workout_sessions s ON s.id = we.session_id
-    WHERE s.status = 'completed' AND ws.completed_at IS NOT NULL
+    WHERE s.status = 'completed' AND we.exercise_id IS NOT NULL
+      AND ws.completed_at IS NOT NULL
       AND ws.reps > 0 AND ws.set_type != 'warmup'
     ORDER BY we.exercise_id, s.completed_at, s.id, ws.completed_at, ws.id
   ''');
