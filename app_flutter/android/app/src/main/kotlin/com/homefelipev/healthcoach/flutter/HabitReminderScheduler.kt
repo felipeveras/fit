@@ -223,22 +223,41 @@ object HabitReminderScheduler {
         var day = start
         while (!day.isAfter(end)) {
             if (isExcludedDay(db, habit.id, day)) excluded += day
-            if (habit.automation == "healthConnectSteps" && !day.isBefore(habit.startDate) && !day.isAfter(date) && day !in excluded &&
-                hasStepCoverage(db, habit.id, day)) measuredDays++
+            if (usesHealthCoverage(habit) && !day.isBefore(habit.startDate) && !day.isAfter(date) && day !in excluded &&
+                hasHealthCoverage(db, habit, day)) measuredDays++
             day = day.plusDays(1)
         }
         return ReminderSchedulePolicy.adjustedPeriodTarget(
             habit.cadence, habit.targetCount, habit.startDate, date, excluded,
-            if (habit.automation == "healthConnectSteps") measuredDays else null,
+            if (usesHealthCoverage(habit)) measuredDays else null,
         )
     }
 
-    private fun hasStepCoverage(db: SQLiteDatabase, habitId: String, day: LocalDate): Boolean =
-        db.rawQuery(
-            "SELECT 1 FROM habit_health_coverage WHERE habit_id=? AND local_date=? AND availability='available' AND read_complete=1 " +
-                "UNION ALL SELECT 1 FROM habit_quantity_logs WHERE habit_id=? AND local_date=? AND source='manual' LIMIT 1",
-            arrayOf(habitId, day.toString(), habitId, day.toString()),
+    private fun usesHealthCoverage(habit: HabitInfo): Boolean =
+        habit.automation in setOf("healthConnectSteps", "healthConnectExercise", "healthConnectRun")
+
+    private fun hasHealthCoverage(db: SQLiteDatabase, habit: HabitInfo, day: LocalDate): Boolean {
+        val exercise = habit.automation != "healthConnectSteps"
+        val source = if (exercise) "health_connect_exercise" else "health_connect_steps"
+        val manualTable = if (exercise) "habit_completions" else "habit_quantity_logs"
+        val manual = db.rawQuery(
+            "SELECT 1 FROM $manualTable WHERE habit_id=? AND local_date=? AND source='manual' LIMIT 1",
+            arrayOf(habit.id, day.toString()),
         ).use { it.moveToFirst() }
+        val completions = db.rawQuery(
+            "SELECT COUNT(*) FROM habit_completions WHERE habit_id=? AND local_date=?",
+            arrayOf(habit.id, day.toString()),
+        ).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+        return db.rawQuery(
+            "SELECT availability,read_complete,provisional FROM habit_health_coverage WHERE habit_id=? AND local_date=? AND source=? LIMIT 1",
+            arrayOf(habit.id, day.toString(), source),
+        ).use { coverage ->
+            if (!coverage.moveToFirst()) manual else ReminderSchedulePolicy.healthDayCovered(
+                exercise, coverage.getString(0), coverage.getInt(1) == 1,
+                coverage.getInt(2) == 1, completions > 0, manual,
+            )
+        }
+    }
 
     private fun periodSuccessCount(db: SQLiteDatabase, habit: HabitInfo, date: LocalDate): Int {
         val naturalStart = ReminderSchedulePolicy.periodStart(habit.cadence, date)
@@ -256,7 +275,7 @@ object HabitReminderScheduler {
                 while (dates.moveToNext()) {
                     val day = LocalDate.parse(dates.getString(0))
                     occurrences += day
-                    if (isExcludedDay(db, habit.id, day)) excluded += day
+                    if (isExcludedDay(db, habit.id, day) || (usesHealthCoverage(habit) && !hasHealthCoverage(db, habit, day))) excluded += day
                 }
                 ReminderSchedulePolicy.successfulOccurrences(occurrences, excluded)
             }
@@ -268,7 +287,7 @@ object HabitReminderScheduler {
                 while (cursor.moveToNext()) {
                     val day = LocalDate.parse(cursor.getString(0))
                     if (cursor.getDouble(1) >= (habit.target ?: Double.POSITIVE_INFINITY) && !isExcludedDay(db, habit.id, day) &&
-                        (habit.automation != "healthConnectSteps" || hasStepCoverage(db, habit.id, day))) count++
+                        (!usesHealthCoverage(habit) || hasHealthCoverage(db, habit, day))) count++
                 }
                 count
             }
@@ -373,6 +392,17 @@ internal object ReminderSchedulePolicy {
 
     fun successfulOccurrences(occurrences: List<LocalDate>, excludedDays: Set<LocalDate>): Int =
         occurrences.count { it !in excludedDays }
+
+    fun healthDayCovered(
+        exercise: Boolean,
+        availability: String,
+        readComplete: Boolean,
+        provisional: Boolean,
+        hasCompletion: Boolean,
+        manual: Boolean,
+    ): Boolean = manual || (readComplete &&
+        (availability == "available" || (exercise && availability == "noData")) &&
+        (!exercise || !provisional || hasCompletion))
 
     fun periodTargetStillDue(cadence: String, targetCount: Int, successes: Int): Boolean =
         cadence !in setOf("weeklyTarget", "monthlyTarget") || successes < targetCount

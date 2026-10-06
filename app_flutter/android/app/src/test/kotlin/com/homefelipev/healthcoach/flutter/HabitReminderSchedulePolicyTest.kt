@@ -55,4 +55,16 @@ class HabitReminderSchedulePolicyTest {
         assertEquals(0, ReminderSchedulePolicy.adjustedPeriodTarget("weeklyTarget", 7, monday, monday, measuredDays = 0))
         assertEquals(2, ReminderSchedulePolicy.adjustedPeriodTarget("weeklyTarget", 7, monday, monday.plusDays(3), measuredDays = 2))
     }
+    @Test
+    fun exerciseCoverageDoesNotTurnPermissionFailuresOrProvisionalDaysIntoMisses() {
+        assertFalse(ReminderSchedulePolicy.healthDayCovered(true, "permissionDenied", false, false, true, false))
+        assertFalse(ReminderSchedulePolicy.healthDayCovered(true, "historyRestricted", false, false, false, false))
+        assertFalse(ReminderSchedulePolicy.healthDayCovered(true, "readError", false, false, false, false))
+        assertFalse(ReminderSchedulePolicy.healthDayCovered(true, "noData", true, true, false, false))
+        assertTrue(ReminderSchedulePolicy.healthDayCovered(true, "noData", true, false, false, false))
+        assertTrue(ReminderSchedulePolicy.healthDayCovered(true, "available", true, true, true, false))
+        assertTrue(ReminderSchedulePolicy.healthDayCovered(true, "permissionDenied", false, true, false, true))
+        assertFalse(ReminderSchedulePolicy.healthDayCovered(false, "noData", true, false, false, false))
+        assertTrue(ReminderSchedulePolicy.healthDayCovered(false, "available", true, true, false, false))
+    }
 }
