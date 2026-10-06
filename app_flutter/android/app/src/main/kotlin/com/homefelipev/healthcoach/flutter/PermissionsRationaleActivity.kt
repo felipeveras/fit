@@ -28,6 +28,8 @@ class PermissionsRationaleActivity : Activity() {
                     "O envio manual opcional ao Telegram envia apenas métricas disponíveis ao bot/chat configurado, " +
                     "sem servidor intermediário. Preferências do bot, horário do último envio e metadados " +
                     "do primeiro consentimento são guardados localmente, sem backup.\n\n" +
+                    "Sessões de exercício e corrida têm permissão opcional independente das demais métricas. " +
+                    "Não lemos rotas nem localização dos exercícios.\n\n" +
                     "Você pode negar ou revogar acesso no Health Connect. Histórico ampliado é opcional. " +
                     "Limpar os dados do app remove os registros locais. Revogar acesso não exclui dados do produtor."
             })

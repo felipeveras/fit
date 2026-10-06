@@ -18,8 +18,10 @@ class MainActivity : FlutterFragmentActivity() {
     private lateinit var channel: MethodChannel
     private val calls = mutableSetOf<MethodChannel.Result>()
     private var permissionResult: MethodChannel.Result? = null
+    private var permissionKind: String? = null
     private val gateway by lazy { AndroidHealthConnectGateway(this) }
     private val grants by lazy { androidFirstGrantTracker(this) }
+    private val exercises by lazy { HealthExerciseReader(AndroidExerciseSource(gateway, grants)) }
     private val repository by lazy {
         DefaultHealthConnectRepository(AndroidHealthConnectDataSource(gateway, grants))
     }
@@ -27,8 +29,10 @@ class MainActivity : FlutterFragmentActivity() {
         PermissionController.createRequestPermissionResultContract(),
     ) {
         val pending = permissionResult ?: return@registerForActivityResult
+        val exercise = permissionKind == "exercise"
         permissionResult = null
-        execute(pending) { permissions() }
+        permissionKind = null
+        execute(pending) { if (exercise) exercisePermissions() else permissions() }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -38,7 +42,7 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private fun handle(call: MethodCall, result: MethodChannel.Result) {
-        if (call.argument<Int>("version") != HEALTH_BRIDGE_VERSION) {
+        if (call.argument<Any>("version") != HEALTH_BRIDGE_VERSION) {
             result.error("unsupported_version", "Bridge version must be 1", null)
             return
         }
@@ -46,6 +50,18 @@ class MainActivity : FlutterFragmentActivity() {
             "getAvailability" -> result.success(envelope("provider" to gateway.providerState().wire()))
             "getPermissions" -> execute(result) { permissions() }
             "requestPermissions" -> request(call, result)
+            "getExercisePermissions" -> execute(result) { exercisePermissions() }
+            "requestExercisePermission" -> request(call, result)
+            "getExerciseSessions" -> {
+                val days = call.argument<Any>("days")
+                val origin = call.argument<Any>("originPackage")
+                if (days !is Int || days !in setOf(1, 7, 30, 90) ||
+                    (origin != null && (origin !is String || origin.isBlank()))) {
+                    result.error("invalid_arguments", "Invalid exercise period or origin", null)
+                } else execute(result) {
+                    withContext(Dispatchers.IO) { exercises.read(days, ZoneId.systemDefault(), origin as String?) }
+                }
+            }
             "openHealthSettings" -> execute(result) {
                 val intent = if (gateway.providerState() == ProviderState.PROVIDER_MISSING_OR_UPDATE_REQUIRED)
                     Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.healthdata"))
@@ -82,22 +98,25 @@ class MainActivity : FlutterFragmentActivity() {
             result.error("permission_request_in_progress", "Permission request is pending", null)
             return
         }
-        val kind = call.argument<String>("kind")
-        if (kind !in setOf("data", "history")) {
+        val kind = if (call.method == "requestExercisePermission") "exercise" else call.argument<String>("kind")
+        if (kind !in setOf("data", "history", "exercise")) {
             result.error("invalid_arguments", "Unknown permission kind", null)
             return
         }
         permissionResult = result
+        permissionKind = kind
         execute(result, complete = false) {
             requireProvider()
             val granted = gateway.grantedPermissions()
-            val requested = if (kind == "data") HealthConnectPermissions.dataRead - granted
+            val requested = if (kind == "exercise") setOf(AndroidExerciseSource.permission) - granted
+            else if (kind == "data") HealthConnectPermissions.dataRead - granted
             else if (gateway.capabilities(granted).history == CapabilityState.NOT_GRANTED)
                 setOf(HealthConnectPermissions.historyRead) else emptySet()
             if (requested.isEmpty()) {
-                result.success(permissions())
+                result.success(if (kind == "exercise") exercisePermissions() else permissions())
                 calls.remove(result)
                 permissionResult = null
+                permissionKind = null
             } else {
                 launcher.launch(requested)
             }
@@ -108,10 +127,20 @@ class MainActivity : FlutterFragmentActivity() {
     private suspend fun permissions(): Map<String, Any?> {
         requireProvider()
         val granted = gateway.grantedPermissions()
-        grants.observe(granted.any { it in HealthConnectPermissions.dataRead })
+        grants.observe(AndroidExerciseSource.permission in granted || granted.any { it in HealthConnectPermissions.dataRead })
         val capabilities = gateway.capabilities(granted)
         return envelope("granted" to granted.toList(), "required" to HealthConnectPermissions.dataRead.toList(),
             "history" to capabilities.history.wire(), "background" to capabilities.background.wire())
+    }
+
+    private suspend fun exercisePermissions(): Map<String, Any?> {
+        val provider = gateway.providerState()
+        if (provider != ProviderState.AVAILABLE) return envelope("provider" to provider.wire(),
+            "granted" to false, "history" to CapabilityState.FEATURE_UNAVAILABLE.wire())
+        val granted = gateway.grantedPermissions()
+        grants.observe(AndroidExerciseSource.permission in granted || granted.any { it in HealthConnectPermissions.dataRead })
+        return envelope("provider" to provider.wire(), "granted" to (AndroidExerciseSource.permission in granted),
+            "history" to gateway.capabilities(granted).history.wire())
     }
 
     private fun requireProvider() {
@@ -127,7 +156,7 @@ class MainActivity : FlutterFragmentActivity() {
                 if (complete && calls.remove(result)) result.success(response)
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
-                if (permissionResult === result) permissionResult = null
+                if (permissionResult === result) { permissionResult = null; permissionKind = null }
                 if (calls.remove(result)) result.error(
                     if (failure is ProviderUnavailable) "provider_unavailable" else "health_connect_error",
                     "Health Connect operation failed", null)
@@ -139,6 +168,7 @@ class MainActivity : FlutterFragmentActivity() {
         channel.setMethodCallHandler(null)
         scope.cancel()
         permissionResult = null
+        permissionKind = null
         calls.toList().forEach { it.error("bridge_detached", "Android host detached", null) }
         calls.clear()
         super.cleanUpFlutterEngine(flutterEngine)

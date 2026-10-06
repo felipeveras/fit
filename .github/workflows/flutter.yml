@@ -1,5 +1,6 @@
 name: Flutter foundation
 on:
+  workflow_dispatch:
   push:
     paths: ['app_flutter/**', '.github/workflows/flutter.yml']
   pull_request:
@@ -28,3 +29,12 @@ jobs:
       - run: flutter build apk --debug
       - run: bash ./gradlew :app:testDebugUnitTest :app:lintDebug
         working-directory: app_flutter/android
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flutter-validation
+          path: |
+            app_flutter/build/app/outputs/flutter-apk/app-debug.apk
+            app_flutter/build/app/reports/tests/
+            app_flutter/build/app/reports/lint-results-debug.html
+          if-no-files-found: warn

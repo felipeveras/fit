@@ -1,10 +1,12 @@
 import 'package:flutter/services.dart';
 
 import 'health_repository.dart';
+import 'health_exercise_repository.dart';
 
 const healthBridgeVersion = 1;
 
-class MethodChannelHealthRepository implements HealthRepository {
+class MethodChannelHealthRepository
+    implements HealthRepository, HealthExerciseRepository {
   MethodChannelHealthRepository({MethodChannel? channel})
     : _channel =
           channel ?? const MethodChannel('com.homefelipev.healthcoach/health');
@@ -48,6 +50,35 @@ class MethodChannelHealthRepository implements HealthRepository {
     _call('getAvailability'),
     (map) => wireEnum(HealthAvailability.values, map['provider']),
   );
+  @override
+  Future<ExercisePermissionState> getExercisePermissions() => _parse(
+    _call('getExercisePermissions'),
+    ExercisePermissionState.fromMap,
+  );
+  @override
+  Future<ExercisePermissionState> requestExercisePermission() => _parse(
+    _call('requestExercisePermission'),
+    ExercisePermissionState.fromMap,
+  );
+  @override
+  Future<HealthExercisePeriod> getExerciseSessions(
+    int days, {
+    String? originPackage,
+  }) {
+    if (![1, 7, 30, 90].contains(days)) {
+      throw ArgumentError.value(days, 'days');
+    }
+    if (originPackage != null && originPackage.trim().isEmpty) {
+      throw ArgumentError.value(originPackage, 'originPackage');
+    }
+    return _parse(
+      _call('getExerciseSessions', {
+        'days': days,
+        'originPackage': originPackage,
+      }),
+      HealthExercisePeriod.fromMap,
+    );
+  }
   @override
   Future<PermissionState> getPermissions() =>
       _parse(_call('getPermissions'), PermissionState.fromMap);
