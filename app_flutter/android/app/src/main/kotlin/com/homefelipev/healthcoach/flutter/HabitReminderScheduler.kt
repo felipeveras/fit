@@ -78,7 +78,9 @@ object HabitReminderScheduler {
             context, habitId.hashCode(), Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val action = PendingIntent.getBroadcast(
+        val requiresChecklist = habit.type != "quantitative" &&
+            (withDatabase(context) { db -> checklistIncomplete(db, habitId, date.toString()) } ?: true)
+        val action = if (requiresChecklist) open else PendingIntent.getBroadcast(
             context, habitId.hashCode() xor 0x22, Intent(context, HabitReminderActionReceiver::class.java)
                 .setAction(ACTION_COMPLETE).putExtra(EXTRA_HABIT_ID, habitId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
@@ -94,7 +96,7 @@ object HabitReminderScheduler {
             "quantitative" -> "Adicione um pouco de progresso à meta de hoje."
             else -> "Um passo pequeno também conta."
         }
-        val actionLabel = when (habit.type) {
+        val actionLabel = if (requiresChecklist) "Abrir etapas" else when (habit.type) {
             "avoid" -> "Registrar ocorrência"
             "quantitative" -> "Adicionar progresso"
             else -> "Concluir"
@@ -121,6 +123,14 @@ object HabitReminderScheduler {
     }
 
     fun act(context: Context, habitId: String, action: String) {
+        if (action == ACTION_COMPLETE) {
+            val habit = readHabit(context, habitId) ?: return
+            if (habit.type != "quantitative") {
+                val day = LocalDate.now().toString()
+                val incomplete = withDatabase(context) { db -> checklistIncomplete(db, habitId, day) } ?: true
+                if (incomplete) return
+            }
+        }
         withDatabase(context) { db ->
             if (action == ACTION_SNOOZE) {
                 db.execSQL("UPDATE habit_reminders SET snoozed_until=?, snooze_count=snooze_count+1, updated_at=? WHERE habit_id=?", arrayOf(Instant.ofEpochMilli(System.currentTimeMillis() + 10 * 60_000L).toString(), Instant.now().toString(), habitId))
@@ -141,6 +151,13 @@ object HabitReminderScheduler {
         refresh(context, habitId)
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(habitId.hashCode())
     }
+
+    private fun checklistIncomplete(db: SQLiteDatabase, habitId: String, day: String): Boolean =
+        db.rawQuery(
+            "SELECT 1 FROM habit_substeps s WHERE s.habit_id=? AND NOT EXISTS " +
+                "(SELECT 1 FROM habit_substep_logs l WHERE l.substep_id=s.id AND l.local_date=?) LIMIT 1",
+            arrayOf(habitId, day),
+        ).use { it.moveToFirst() }
 
     private data class Reminder(val enabled: Int, val hour: Int?, val minute: Int?, val snoozedUntil: Long?)
     private data class HabitInfo(
@@ -209,7 +226,7 @@ object HabitReminderScheduler {
         val successes = when (habit.type) {
             // Match the tracker: completed logs on rest/vacation days do not count.
             "positive" -> db.rawQuery(
-                "SELECT DISTINCT local_date FROM habit_completions WHERE habit_id=? AND local_date BETWEEN ? AND ?",
+                "SELECT local_date FROM habit_completions WHERE habit_id=? AND local_date BETWEEN ? AND ?",
                 arrayOf(habit.id, start, through),
             ).use { dates ->
                 var count = 0
