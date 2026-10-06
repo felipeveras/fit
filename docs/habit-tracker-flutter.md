@@ -1,9 +1,10 @@
 # Habit Tracker Flutter
 
 The feature lives under `app_flutter/lib/features/habits` and uses the shared
-`AppDatabase` at `app_fit.db`. `AppDatabase` is version 2 on this branch; the
-habit migration is isolated in `habit_schema.dart` so the coordinator can merge
-it with the Workout v4 migration without introducing another database.
+`AppDatabase` at `app_fit.db`, now at version 5. Upgrades preserve metadata
+(v1), workouts (v2), session timers and outbox (v3), and prescriptions/PR
+history/retry metadata (v4), then add the habit tables (v5). No habit-only
+v2 schema was released; the historical v2 remains the workout schema.
 
 ## Integration surface
 
@@ -25,22 +26,21 @@ it with the Workout v4 migration without introducing another database.
 SQLite transaction commits and returns the count of new habit records. The
 consumer deduplicates by `(habit_id, source_event_id)` across app restarts.
 
-The #20 adapter should provide finalized events with:
+`WorkoutHabitConsumer` connects the #20 durable outbox to `HabitRepository`
+at application bootstrap. Each delivery awaits the SQLite habit transaction;
+a failed delivery remains pending for replay. Stable workout event IDs prevent
+duplicate completions even when the process exits after persistence but before
+acknowledgement. The app can still open while a pending event needs another retry.
 
-- stable `eventId`, unchanged when a pending event is replayed;
-- stable `sessionId`;
-- `occurredAt` as a Dart `DateTime` representing the event instant;
-- optional exercise type and display label;
-- `source: 'workout'`.
-
-The #19 Health Connect exercise adapter should use the same sink with
-`source: 'health_connect_exercise'` and set `isRunning` from the bridge's
-normalized exercise type. `eventId` must be stable across reads (prefer the
-provider record ID; otherwise derive a deterministic key from source package,
-start, end, and normalized exercise type). The producer must await the sink
-before acknowledging delivery. This worktree defines the consumer but does not
-import or edit the #19/#20 worktrees.
-
+Exercise automation reads the optional #19 `HealthExerciseRepository`
+capability independently of step permissions. Settings exposes its separate
+permission request. The habit page stores one selected origin in app metadata;
+if multiple producers exist it asks for a source before importing exercises.
+Switching origins replaces only automated exercise logs. Provider origin and
+record ID form a JSON composite key; replaying the same read is idempotent.
+Per-day permission/history/read errors remain uncovered, retain prior records,
+and never become zero or a missed opportunity. An empty provisional day is
+also excluded until the daily read is complete.
 Step automation consumes the existing 7/30/90-day daily snapshots. It records
 the availability, completeness, and provisional state for each date. Only an
 available, complete daily value becomes a quantity log; no-data, missing,

@@ -51,7 +51,10 @@ void main() {
         );
         expect(tables.map((t) => t['name']), contains('habits'));
         expect(tables.map((t) => t['name']), contains('habit_completions'));
-        expect(tables.map((t) => t['name']), isNot(contains('health_snapshots')));
+        expect(
+          tables.map((t) => t['name']),
+          isNot(contains('health_snapshots')),
+        );
       } finally {
         await store.close();
         await directory.delete(recursive: true);

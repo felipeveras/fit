@@ -1,4 +1,3 @@
-
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -93,51 +92,76 @@ class HabitController extends ChangeNotifier {
     }
   }
 
-  Future<void> syncExerciseHistory() async {
+  List<String> exerciseOrigins = const [];
+  String? exerciseOrigin;
+  Future<void> selectExerciseOrigin(String origin) async {
+    await repository.setExerciseOrigin(origin);
+    await syncExerciseHistory();
+  }
 
+  Future<void> syncExerciseHistory() async {
     final source = health;
 
-    if (source is! HealthExerciseRepository || !habits.any((p) => p.habit.automation == HabitAutomation.healthConnectExercise || p.habit.automation == HabitAutomation.healthConnectRun)) return;
+    if (source is! HealthExerciseRepository ||
+        !habits.any(
+          (p) =>
+              p.habit.automation == HabitAutomation.healthConnectExercise ||
+              p.habit.automation == HabitAutomation.healthConnectRun,
+        ))
+      return;
 
     try {
-
       final permissions = await source.getExercisePermissions();
 
       if (!permissions.granted) {
-
-        error = 'Autorize a leitura de exerc?cios nas Configura??es para atualizar estes h?bitos.';
+        error = 'Autorize a leitura de exercícios nas Configurações para atualizar estes hábitos.';
 
         _notify();
 
         return;
-
       }
 
-      await repository.consumeHealthConnectExercises(await source.getExerciseSessions(90));
+      exerciseOrigin = await repository.exerciseOrigin();
+      var period = await source.getExerciseSessions(
+        90,
+        originPackage: exerciseOrigin,
+      );
+      final origins =
+          period.coverage.expand((day) => day.origins).toSet().toList()..sort();
+      if (exerciseOrigin == null && origins.length > 1) {
+        exerciseOrigins = origins;
+        error = 'Escolha uma fonte de exercícios para evitar contar o mesmo treino de dois aplicativos.';
+        _notify();
+        return;
+      }
+      if (exerciseOrigin == null && origins.length == 1) {
+        exerciseOrigin = origins.single;
+        await repository.setExerciseOrigin(exerciseOrigin!);
+        period = await source.getExerciseSessions(
+          90,
+          originPackage: exerciseOrigin,
+        );
+      }
+      exerciseOrigins = {
+        ...exerciseOrigins,
+        ...origins,
+        if (exerciseOrigin != null) exerciseOrigin!,
+      }.toList()..sort();
+      await repository.consumeHealthConnectExercises(period);
 
       await refresh();
-
     } catch (_) {
-
-      error = 'A leitura de exerc?cios n?o foi atualizada. Os registros anteriores continuam dispon?veis.';
+      error = 'A leitura de exercícios não foi atualizada. Os registros anteriores continuam disponíveis.';
 
       _notify();
-
     }
-
   }
 
-
-
   Future<void> syncHealthHistory() async {
-
     await syncStepHistory();
 
     await syncExerciseHistory();
-
   }
-
-
 
   /// Connect the #20 producer through this narrow, testable stream contract.
   /// Producers must publish only finalized sessions with stable eventId and sessionId.
@@ -291,8 +315,10 @@ class HabitController extends ChangeNotifier {
     await refresh();
   });
   Future<void> removeVacation(String id) async => _run(() async {
-    final affected = habits.where((row) => row.vacations.any((v) => v.id == id))
-        .map((row) => row.habit.id).toList();
+    final affected = habits
+        .where((row) => row.vacations.any((v) => v.id == id))
+        .map((row) => row.habit.id)
+        .toList();
     await repository.removeVacation(id);
     for (final habitId in affected) {
       await _syncReminder(habitId);
@@ -357,8 +383,10 @@ class HabitController extends ChangeNotifier {
   Future<void> _syncReminder(String id) async {
     try {
       final habit = await repository.getHabit(id);
-      await HabitReminderBridge.sync(id,
-          enabled: habit?.reminderEnabled == true && habit?.archivedAt == null);
+      await HabitReminderBridge.sync(
+        id,
+        enabled: habit?.reminderEnabled == true && habit?.archivedAt == null,
+      );
     } catch (_) {
       // Non-Android hosts retain scheduling state in the shared database.
     }

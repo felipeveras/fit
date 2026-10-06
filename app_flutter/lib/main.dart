@@ -42,7 +42,8 @@ class _BootstrapState extends State<_Bootstrap> {
     setState(() => _failed = false);
     try {
       await _database.open();
-      await _workouts.connectEventConsumer(WorkoutHabitConsumer(HabitRepository(_database)).consume);
+      _workouts.events.connectConsumer(WorkoutHabitConsumer(HabitRepository(_database)).consume);
+      await _workouts.replayPendingEvents();
       await _recoverPickedPhoto();
       final preferences = AppPreferences(await SharedPreferences.getInstance());
       if (!mounted) return;
@@ -84,7 +85,11 @@ class _BootstrapState extends State<_Bootstrap> {
 
   @override
   Widget build(BuildContext context) => _controller != null
-      ? AppFit(controller: _controller!, database: _database, workouts: _workouts)
+      ? AppFit(
+          controller: _controller!,
+          database: _database,
+          workouts: _workouts,
+        )
       : MaterialApp(
           home: Scaffold(
             body: Center(

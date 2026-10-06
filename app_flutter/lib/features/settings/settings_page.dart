@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/health/health_repository.dart';
+import '../../core/health/health_exercise_repository.dart';
 import '../../core/persistence/app_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -139,6 +140,34 @@ class _SettingsPageState extends State<SettingsPage> {
               }
             },
           ),
+          if (widget.health is HealthExerciseRepository)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Leitura de exercícios (opcional)'),
+              subtitle: const Text(
+                'Autorize para concluir hábitos com sessões e corridas do Health Connect.',
+              ),
+              trailing: const Icon(Icons.fitness_center),
+              onTap: () async {
+                try {
+                  final state =
+                      await (widget.health as HealthExerciseRepository)
+                          .requestExercisePermission();
+                  if (mounted)
+                    setState(
+                      () => message = state.granted
+                          ? 'Leitura de exercícios autorizada.'
+                          : 'Leitura de exercícios não autorizada.',
+                    );
+                } catch (_) {
+                  if (mounted)
+                    setState(
+                      () => message =
+                          'Não foi possível solicitar a leitura de exercícios.',
+                    );
+                }
+              },
+            ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Sobre e créditos'),

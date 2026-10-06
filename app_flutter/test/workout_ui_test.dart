@@ -82,6 +82,9 @@ void main() {
     try {
       expect(find.text('−15 s'), findsOneWidget);
       expect(find.byTooltip('Pular descanso'), findsOneWidget);
+      final before = await tester.runAsync(
+        () => services.sessions.getRestTimer(sessionId),
+      );
 
       await tester.tap(find.text('−15 s'));
       await tester.pump();
@@ -95,7 +98,10 @@ void main() {
       );
       expect(timer, isNotNull);
       expect(timer!.isPaused, isFalse);
-      expect(timer.remaining.inSeconds, inInclusiveRange(44, 45));
+      expect(
+        timer.endsAt,
+        before!.endsAt!.subtract(const Duration(seconds: 15)),
+      );
     } finally {
       await unmountWorkoutPage(tester);
     }
@@ -104,9 +110,7 @@ void main() {
   testWidgets('−15 s preserves a paused timer and skip is separate', (
     tester,
   ) async {
-    await tester.runAsync(
-      () => services.sessions.pauseRestTimer(sessionId),
-    );
+    await tester.runAsync(() => services.sessions.pauseRestTimer(sessionId));
     await pumpWorkoutPage(tester);
     try {
       await tester.tap(find.text('−15 s'));

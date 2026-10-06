@@ -29,7 +29,9 @@ Future<void> createHabitSchema(DatabaseExecutor db) async {
     CHECK(type != 'quantitative' OR (quantity_target > 0 AND quantity_unit IS NOT NULL AND length(trim(quantity_unit)) > 0)),
     CHECK(reminder_enabled = 0 OR (reminder_hour BETWEEN 0 AND 23 AND reminder_minute BETWEEN 0 AND 59))
   )''');
-  await db.execute('CREATE INDEX habits_active_position ON habits(archived_at, position, name)');
+  await db.execute(
+    'CREATE INDEX habits_active_position ON habits(archived_at, position, name)',
+  );
   await db.execute('''CREATE TABLE habit_completions (
     id TEXT PRIMARY KEY NOT NULL,
     habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
@@ -41,8 +43,12 @@ Future<void> createHabitSchema(DatabaseExecutor db) async {
     behavioral_moment_id TEXT,
     created_at TEXT NOT NULL
   )''');
-  await db.execute('CREATE INDEX habit_completions_day ON habit_completions(habit_id, local_date, occurred_at)');
-  await db.execute('CREATE UNIQUE INDEX habit_completions_event ON habit_completions(habit_id, source_event_id) WHERE source_event_id IS NOT NULL');
+  await db.execute(
+    'CREATE INDEX habit_completions_day ON habit_completions(habit_id, local_date, occurred_at)',
+  );
+  await db.execute(
+    'CREATE UNIQUE INDEX habit_completions_event ON habit_completions(habit_id, source_event_id) WHERE source_event_id IS NOT NULL',
+  );
   await db.execute('''CREATE TABLE habit_quantity_logs (
     id TEXT PRIMARY KEY NOT NULL,
     habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
@@ -54,8 +60,12 @@ Future<void> createHabitSchema(DatabaseExecutor db) async {
     note TEXT,
     behavioral_moment_id TEXT
   )''');
-  await db.execute('CREATE INDEX habit_quantity_day ON habit_quantity_logs(habit_id, local_date, occurred_at)');
-  await db.execute('CREATE UNIQUE INDEX habit_quantity_event ON habit_quantity_logs(habit_id, source_event_id) WHERE source_event_id IS NOT NULL');
+  await db.execute(
+    'CREATE INDEX habit_quantity_day ON habit_quantity_logs(habit_id, local_date, occurred_at)',
+  );
+  await db.execute(
+    'CREATE UNIQUE INDEX habit_quantity_event ON habit_quantity_logs(habit_id, source_event_id) WHERE source_event_id IS NOT NULL',
+  );
   await db.execute('''CREATE TABLE habit_ignored_events (
     habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
     source_event_id TEXT NOT NULL,
@@ -99,7 +109,9 @@ Future<void> createHabitSchema(DatabaseExecutor db) async {
     label TEXT NOT NULL DEFAULT 'Pausa',
     CHECK(end_date >= start_date)
   )''');
-  await db.execute('CREATE INDEX habit_vacations_range ON habit_vacations(habit_id, start_date, end_date)');
+  await db.execute(
+    'CREATE INDEX habit_vacations_range ON habit_vacations(habit_id, start_date, end_date)',
+  );
   await db.execute('''CREATE TABLE habit_health_coverage (
     habit_id TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
     local_date TEXT NOT NULL,
@@ -143,5 +155,7 @@ Future<void> createHabitSchema(DatabaseExecutor db) async {
     completed INTEGER NOT NULL,
     note TEXT
   )''');
-  await db.execute('CREATE INDEX habit_focus_sessions_start ON habit_focus_sessions(started_at)');
+  await db.execute(
+    'CREATE INDEX habit_focus_sessions_start ON habit_focus_sessions(started_at)',
+  );
 }

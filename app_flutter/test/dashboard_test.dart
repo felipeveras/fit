@@ -8,6 +8,7 @@ import 'package:app_fit/features/dashboard/dashboard_controller.dart';
 import 'package:app_fit/features/telegram/telegram_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,6 +58,7 @@ class FakeHealth implements HealthRepository {
 }
 
 void main() {
+  sqfliteFfiInit();
   TestWidgetsFlutterBinding.ensureInitialized();
   late AppPreferences prefs;
   late FakeHealth health;
@@ -115,6 +117,7 @@ void main() {
     await tester.pumpWidget(
       AppFit(
         controller: c,
+        database: AppDatabase(factory: databaseFactoryFfi),
         dashboardModules: const [Text('Módulo de hábitos integrado')],
       ),
     );
@@ -140,7 +143,12 @@ void main() {
   ) async {
     final client = MockClient((_) async => http.Response('{"ok":true}', 200));
     final c = DashboardController(health, prefs, TelegramService(client));
-    await tester.pumpWidget(AppFit(controller: c, database: AppDatabase()));
+    await tester.pumpWidget(
+      AppFit(
+        controller: c,
+        database: AppDatabase(factory: databaseFactoryFfi),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Seu ritmo, hoje'), findsOneWidget);
     expect(find.text('Passos'), findsOneWidget);
