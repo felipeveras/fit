@@ -50,12 +50,14 @@ the bridge collects today's data again even when viewing a historical period.
   sum of weight or heart rate.
 - `features/telegram`: direct Dart HTTP and daily summary formatter.
 - `core/persistence`: SharedPreferences for simple settings, one versioned SQLite
-  database `app_fit.db` for future app-owned records. No health data replication.
+  database `app_fit.db` for app-owned records. Workout issue #20 includes the
+  exercise library, routines, live sessions, timers and progress records. No
+  health data replication.
 - `features/settings`: Telegram configuration, Health Connect settings, credits.
 
 App ID: `com.homefelipev.healthcoach.flutter`, deliberately separate to install
 alongside Kotlin. Grants and preferences are independent. No automatic import or
-autosend in Flutter yet. Coach, workouts and habits belong to separate issues.
+autosend in Flutter yet. Coach and habits belong to separate issues.
 No upstream GymMane/Streak code or assets are included.
 
 Full contract, provenance and device checklist: [migration notes](../docs/flutter-migration.md).

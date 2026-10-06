@@ -51,9 +51,11 @@ fundação o escopo de paridade é exatamente o das sete métricas existentes.
 
 Health Connect continua sendo a fonte de verdade de saúde; snapshots ficam
 somente em memória. A base única `app_fit.db` (SQLite/sqflite) usa `user_version`
-e migrations incrementais. A fundação registra versão e instalação; tabelas de
-hábitos, treino e bem-estar serão acrescentadas nas respectivas issues, na mesma
-base, sem criar modelos vazios. Preferências Telegram e último envio ficam em
+e migrations incrementais. As versões 2 a 4 acrescentam o schema da issue #20:
+biblioteca de exercícios, rotinas e dias agendados, sessões, séries, timer
+recuperável, metas de prescrição copiadas para cada sessão, histórico de PRs,
+outbox de eventos com retry, medidas e metadados de fotos. O módulo mantém os
+dados detalhados de força no armazenamento local. Preferências Telegram e último envio ficam em
 SharedPreferences. Não há conta, backend ou dependência de IA.
 
 Para coexistência, o APK Flutter usa `com.homefelipev.healthcoach.flutter`.
@@ -64,8 +66,12 @@ do applicationId e migração de preferências exigem uma decisão no cutover.
 ## Origem e licenças
 
 O bridge deriva do próprio repositório, referência `c0148fa`; não incorpora código
-nem assets do GymMane ou Streak. Os ícones são Material Icons fornecidos pelo
-Flutter; o ícone do launcher vem do próprio app Kotlin. Sobre/Créditos informa isso; incorporar upstream futuramente exige
+nem assets do GymMane ou Streak. O catálogo inicial da issue #20 contém nomes e
+instruções próprios, sem código nem arte upstream. O GymMane publica seu código
+sob GPL-3.0 com termo adicional de atribuição; qualquer adaptação futura deve
+preservar os notices e o crédito "Based on GymMane by InlitX". Os ícones são
+Material Icons fornecidos pelo Flutter; o ícone do launcher vem do próprio app
+Kotlin. Sobre/Créditos informa isso; incorporar upstream futuramente exige
 registrar arquivos, revisão de licença e notices correspondentes. Esta entrega
 não declara uma licença nova para todo o repositório.
 
@@ -103,5 +109,33 @@ não declara uma licença nova para todo o repositório.
   [configurações](migration/flutter-settings.png).
 - CI configurada para reproduzir checks em Linux; ainda não executada no GitHub.
   Aparelho real, dados de produtores e entrega Telegram real continuam pendentes.
+
+## Evidências do módulo de treinos (#20, 06/10/2026)
+
+- Catálogo pesquisável e exercícios personalizados; CRUD e duplicação de
+  rotinas com ordem, prescrição, superset e dias agendados.
+- Sessão ativa persistida com registro/edição/exclusão de séries, RPE/RIR,
+  timer recuperável, conclusão/cancelamento e resumo compartilhável. Conclusão
+  válida grava evento idempotente para consumidores do domínio.
+- Histórico, PRs, 1RM estimado, volume, duração, grupos musculares, frequência,
+  meta semanal, streak, heatmap, medidas e fotos de progresso implementados.
+- Antes destas quatro correções, `dart format` não indicou mudanças,
+  `flutter analyze` não encontrou issues e `flutter test` aprovou 27 testes.
+- Regressões para timer/UI, retry/replay de eventos, snapshot de prescrição e
+  histórico de PRs foram adicionadas nesta correção; permanecem para validação
+  centralizada e não foram executadas neste worktree.
+- `flutter build apk --debug`: APK gerado. A primeira tentativa ficou sem espaço
+  no volume do workspace; a compilação concluída usou o volume com espaço livre.
+  Flutter avisou sobre versões futuras do Gradle, AGP e Kotlin.
+- Fluxos do módulo ainda não foram exercitados manualmente em aparelho/emulador;
+  o APK não foi instalado nesta validação.
+- Na migração v4, o histórico de PRs é reconstruído cronologicamente a partir
+  das séries concluídas já armazenadas; a tabela de melhores atuais continua
+  preservada separadamente.
+- Workout publica `WorkoutDomainEvent` de forma durável após conclusão válida.
+  O `id` do evento é a chave de idempotência; o sink assíncrono só confirma após
+  persistência no consumidor. Sem consumidor conectado, ou após falha, o evento
+  permanece pendente para replay/retry. A conexão ao Habit Engine fica para a
+  integração conjunta com a issue #21.
 
 Referência técnica: [canais de plataforma Flutter](https://docs.flutter.dev/platform-integration/platform-channels).
