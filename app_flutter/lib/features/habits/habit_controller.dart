@@ -113,7 +113,9 @@ class HabitController extends ChangeNotifier {
     }
 
     try {
-      final permissions = await source.getExercisePermissions();
+      final HealthExerciseRepository exerciseSource =
+          source as HealthExerciseRepository;
+      final permissions = await exerciseSource.getExercisePermissions();
 
       if (!permissions.granted) {
         error = 'Autorize a leitura de exercícios nas Configurações para atualizar estes hábitos.';
@@ -124,12 +126,17 @@ class HabitController extends ChangeNotifier {
       }
 
       exerciseOrigin = await repository.exerciseOrigin();
-      var period = await source.getExerciseSessions(
+      var period = await exerciseSource.getExerciseSessions(
         90,
         originPackage: exerciseOrigin,
       );
       final origins =
           period.coverage.expand((day) => day.origins).toSet().toList()..sort();
+      if (exerciseOrigin == null && origins.isEmpty) {
+        error = 'Nenhuma fonte de exercícios foi encontrada. Os registros manuais continuam disponíveis.';
+        _notify();
+        return;
+      }
       if (exerciseOrigin == null && origins.length > 1) {
         exerciseOrigins = origins;
         error = 'Escolha uma fonte de exercícios para evitar contar o mesmo treino de dois aplicativos.';
@@ -139,7 +146,7 @@ class HabitController extends ChangeNotifier {
       if (exerciseOrigin == null && origins.length == 1) {
         exerciseOrigin = origins.single;
         await repository.setExerciseOrigin(exerciseOrigin!);
-        period = await source.getExerciseSessions(
+        period = await exerciseSource.getExerciseSessions(
           90,
           originPackage: exerciseOrigin,
         );

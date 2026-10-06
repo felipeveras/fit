@@ -787,7 +787,8 @@ class HabitRepository {
                 (row['source'] == 'health_connect_exercise' &&
                     row['availability'] == MetricAvailability.noData.name)) &&
             row['read_complete'] == 1 &&
-            (row['provisional'] != 1 ||
+            (row['source'] != 'health_connect_exercise' ||
+                row['provisional'] != 1 ||
                 (completeCount[row['local_date']] ?? 0) > 0 ||
                 (amounts[row['local_date']] ?? 0) > 0);
       }

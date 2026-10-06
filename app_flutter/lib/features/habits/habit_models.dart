@@ -123,7 +123,8 @@ class Habit {
       throw ArgumentError('A meta diária deve ser positiva.');
     }
     if (type == HabitType.quantitative &&
-        (!(quantityTarget ?? 0).isFinite ||
+        (quantityTarget == null ||
+            !quantityTarget!.isFinite ||
             quantityTarget! <= 0 ||
             (quantityUnit?.trim().isEmpty ?? true))) {
       throw ArgumentError('Informe uma meta e uma unidade válidas.');

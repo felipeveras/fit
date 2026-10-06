@@ -536,7 +536,19 @@ class WorkoutSessionRepository {
         whereArgs: [sessionId],
       );
     } else {
-      await startRestTimer(sessionId, next, now: now);
+      // Adjust the persisted deadline itself. Rebuilding it from a remaining
+      // duration and a second wall-clock read otherwise adds I/O elapsed time.
+      await db.update(
+        'workout_rest_timers',
+        {
+          'ends_at': current.endsAt!.add(delta).toUtc().toIso8601String(),
+          'remaining_ms': next.inMilliseconds,
+          'is_paused': 0,
+          'updated_at': currentTime.toIso8601String(),
+        },
+        where: 'session_id = ?',
+        whereArgs: [sessionId],
+      );
     }
   }
 
