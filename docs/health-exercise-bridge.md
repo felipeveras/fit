@@ -70,9 +70,21 @@ identidade composta somente conforme a política de dados do módulo consumidor.
 
 ## Validação centralizada
 
-Os novos testes Dart e Kotlin foram escritos, **não executados neste estágio**.
-Executar format/analyze/test/build/lint sequencialmente no worktree central e
-registrar resultado por SHA. Casos nativos: paginação, repetição de token, falha
+Revisão centralizada em 06/10/2026 do commit `72db87f`, seguida de ajuste de
+formatação em seis arquivos Dart, sem mudança funcional:
+
+- `dart format --output=none --set-exit-if-changed app_flutter/lib app_flutter/test`:
+  zero alterações após aplicar o formatter.
+- `flutter analyze --no-pub`: sem issues.
+- `flutter test --no-pub`: 19 testes aprovados.
+- `gradlew.bat :app:testDebugUnitTest`: 45 testes nativos, zero falhas.
+- `tool/lint-android.ps1`: lint Debug aprovado, sem desativar checks.
+
+Não foi executado novo build APK standalone nem validação física nesta revisão.
+Os checks locais aprovam a fundação incremental, não concluem o cutover nem
+demonstram a integração com os módulos #20/#21.
+
+Casos nativos: paginação, repetição de token, falha
 na segunda página, fontes distintas, revogação, histórico, overnight e cancelamento.
 No aparelho: concessão somente exercício, somente passos, negação/revogação,
 duas fontes, sessão overnight, corrida/esteira e provider indisponível.

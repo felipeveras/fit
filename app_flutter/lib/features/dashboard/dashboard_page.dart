@@ -7,7 +7,11 @@ import '../telegram/telegram_service.dart';
 import 'dashboard_controller.dart';
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key, required this.controller, this.modules = const []});
+  const DashboardPage({
+    super.key,
+    required this.controller,
+    this.modules = const [],
+  });
   final List<Widget> modules;
   final DashboardController controller;
   @override
@@ -176,9 +180,10 @@ class _DashboardPageState extends State<DashboardPage>
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            if (widget.modules.isEmpty) const Text(
-              'Treinos, hábitos, bem-estar e Coach chegarão nas próximas etapas.',
-            ),
+            if (widget.modules.isEmpty)
+              const Text(
+                'Treinos, hábitos, bem-estar e Coach chegarão nas próximas etapas.',
+              ),
             ...widget.modules,
             const SizedBox(height: 24),
           ],

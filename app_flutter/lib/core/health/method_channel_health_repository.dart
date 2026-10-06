@@ -51,10 +51,8 @@ class MethodChannelHealthRepository
     (map) => wireEnum(HealthAvailability.values, map['provider']),
   );
   @override
-  Future<ExercisePermissionState> getExercisePermissions() => _parse(
-    _call('getExercisePermissions'),
-    ExercisePermissionState.fromMap,
-  );
+  Future<ExercisePermissionState> getExercisePermissions() =>
+      _parse(_call('getExercisePermissions'), ExercisePermissionState.fromMap);
   @override
   Future<ExercisePermissionState> requestExercisePermission() => _parse(
     _call('requestExercisePermission'),
@@ -79,6 +77,7 @@ class MethodChannelHealthRepository
       HealthExercisePeriod.fromMap,
     );
   }
+
   @override
   Future<PermissionState> getPermissions() =>
       _parse(_call('getPermissions'), PermissionState.fromMap);

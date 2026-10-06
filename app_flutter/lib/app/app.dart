@@ -5,7 +5,11 @@ import '../features/dashboard/dashboard_controller.dart';
 import '../features/dashboard/dashboard_page.dart';
 
 class AppFit extends StatelessWidget {
-  const AppFit({super.key, required this.controller, this.dashboardModules = const []});
+  const AppFit({
+    super.key,
+    required this.controller,
+    this.dashboardModules = const [],
+  });
   final DashboardController controller;
   final List<Widget> dashboardModules;
   @override

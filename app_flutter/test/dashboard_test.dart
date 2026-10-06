@@ -106,20 +106,29 @@ void main() {
       client.close();
     },
   );
-  testWidgets('home composes injected modules without an AI service', (tester) async {
+  testWidgets('home composes injected modules without an AI service', (
+    tester,
+  ) async {
     final client = MockClient((_) async => http.Response('{"ok":true}', 200));
     final c = DashboardController(health, prefs, TelegramService(client));
-    await tester.pumpWidget(AppFit(
-      controller: c,
-      dashboardModules: const [Text('Módulo de hábitos integrado')],
-    ));
+    await tester.pumpWidget(
+      AppFit(
+        controller: c,
+        dashboardModules: const [Text('Módulo de hábitos integrado')],
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Módulo de hábitos integrado'),
       300,
     );
     expect(find.text('Módulo de hábitos integrado'), findsOneWidget);
-    expect(find.text('Treinos, hábitos, bem-estar e Coach chegarão nas próximas etapas.'), findsNothing);
+    expect(
+      find.text(
+        'Treinos, hábitos, bem-estar e Coach chegarão nas próximas etapas.',
+      ),
+      findsNothing,
+    );
     await tester.pumpWidget(const SizedBox());
     c.dispose();
     client.close();

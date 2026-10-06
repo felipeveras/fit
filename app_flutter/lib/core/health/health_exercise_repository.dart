@@ -51,6 +51,7 @@ class HealthExerciseSession {
   final int exerciseType;
   final bool isRunning;
   Duration get duration => endAt.difference(startAt);
+
   /// Keep these two fields as a composite key; IDs alone are insufficient.
   (String, String) get identity => (origin, id);
 }
@@ -86,12 +87,14 @@ class HealthExercisePeriod {
       originPackage = map['originPackage'] as String?,
       coverage = List.unmodifiable(
         (map['coverage'] as List).map(
-          (entry) => ExerciseDayCoverage.fromMap(entry as Map<Object?, Object?>),
+          (entry) =>
+              ExerciseDayCoverage.fromMap(entry as Map<Object?, Object?>),
         ),
       ),
       sessions = List.unmodifiable(
         (map['sessions'] as List).map(
-          (entry) => HealthExerciseSession.fromMap(entry as Map<Object?, Object?>),
+          (entry) =>
+              HealthExerciseSession.fromMap(entry as Map<Object?, Object?>),
         ),
       ) {
     if (![1, 7, 30, 90].contains(days) ||
