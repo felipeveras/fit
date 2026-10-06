@@ -1,6 +1,7 @@
 package com.homefelipev.healthcoach.flutter
 
 import java.time.LocalDate
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,5 +23,36 @@ class HabitReminderSchedulePolicyTest {
         assertTrue(ReminderSchedulePolicy.isScheduled("weeklyTarget", emptySet(), 1, monday, monday.plusDays(2)))
         assertTrue(ReminderSchedulePolicy.periodTargetStillDue("weeklyTarget", targetCount = 3, successes = 2))
         assertFalse(ReminderSchedulePolicy.periodTargetStillDue("monthlyTarget", targetCount = 3, successes = 3))
+    }
+
+    @Test fun partialWeeklyStartReducesTargetAndStopsAfterItIsMet() {
+        val friday = monday.plusDays(4)
+        val target = ReminderSchedulePolicy.adjustedPeriodTarget("weeklyTarget", 7, friday, friday)
+        assertEquals(3, target)
+        assertTrue(ReminderSchedulePolicy.periodTargetStillDue("weeklyTarget", target, 2))
+        assertFalse(ReminderSchedulePolicy.periodTargetStillDue("weeklyTarget", target, 3))
+    }
+
+    @Test fun restAndVacationReduceWholePeriodTargetsEvenBeforeExcludedDatesArrive() {
+        val excluded = setOf(monday.plusDays(2), monday.plusDays(3), monday.plusDays(4))
+        assertEquals(4, ReminderSchedulePolicy.adjustedPeriodTarget("weeklyTarget", 7, monday, monday, excluded))
+        val octoberStart = LocalDate.parse("2026-10-01")
+        val vacation = (0L..9L).map { octoberStart.plusDays(it) }.toSet()
+        assertEquals(21, ReminderSchedulePolicy.adjustedPeriodTarget("monthlyTarget", 31, octoberStart, octoberStart, vacation))
+        val allDays = (0L..6L).map { monday.plusDays(it) }.toSet()
+        assertEquals(0, ReminderSchedulePolicy.adjustedPeriodTarget("weeklyTarget", 7, monday, monday, allDays))
+        assertFalse(ReminderSchedulePolicy.periodTargetStillDue("weeklyTarget", 0, 0))
+    }
+
+    @Test fun multipleSameDayOccurrencesMeetTargetButExcludedOccurrencesDoNotCount() {
+        val excluded = monday.plusDays(1)
+        val successes = ReminderSchedulePolicy.successfulOccurrences(listOf(monday, monday, monday, excluded), setOf(excluded))
+        assertEquals(3, successes)
+        assertFalse(ReminderSchedulePolicy.periodTargetStillDue("monthlyTarget", 3, successes))
+    }
+
+    @Test fun automaticStepsUseOnlyMeasuredDaysForThePeriodTarget() {
+        assertEquals(0, ReminderSchedulePolicy.adjustedPeriodTarget("weeklyTarget", 7, monday, monday, measuredDays = 0))
+        assertEquals(2, ReminderSchedulePolicy.adjustedPeriodTarget("weeklyTarget", 7, monday, monday.plusDays(3), measuredDays = 2))
     }
 }

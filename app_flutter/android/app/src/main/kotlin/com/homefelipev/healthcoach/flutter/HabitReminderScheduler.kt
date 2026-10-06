@@ -170,6 +170,7 @@ object HabitReminderScheduler {
         val weekdays: Set<Int>,
         val intervalDays: Int,
         val startDate: LocalDate,
+        val automation: String,
     )
 
     private fun nextEligibleTime(context: Context, habit: HabitInfo, hour: Int, minute: Int, nowMillis: Long): Long? {
@@ -198,7 +199,7 @@ object HabitReminderScheduler {
         if (habit.cadence == "weeklyTarget" || habit.cadence == "monthlyTarget") {
             return ReminderSchedulePolicy.periodTargetStillDue(
                 habit.cadence,
-                habit.targetCount,
+                periodTarget(db, habit, date),
                 periodSuccessCount(db, habit, date),
             )
         }
@@ -214,12 +215,33 @@ object HabitReminderScheduler {
         ).use { return it.moveToFirst() }
     }
 
-    private fun periodSuccessCount(db: SQLiteDatabase, habit: HabitInfo, date: LocalDate): Int {
-        val naturalStart = if (habit.cadence == "weeklyTarget") {
-            date.minusDays((date.dayOfWeek.value - 1).toLong())
-        } else {
-            date.withDayOfMonth(1)
+    private fun periodTarget(db: SQLiteDatabase, habit: HabitInfo, date: LocalDate): Int {
+        val start = ReminderSchedulePolicy.periodStart(habit.cadence, date)
+        val end = ReminderSchedulePolicy.periodEnd(habit.cadence, date)
+        val excluded = mutableSetOf<LocalDate>()
+        var measuredDays = 0
+        var day = start
+        while (!day.isAfter(end)) {
+            if (isExcludedDay(db, habit.id, day)) excluded += day
+            if (habit.automation == "healthConnectSteps" && !day.isBefore(habit.startDate) && !day.isAfter(date) && day !in excluded &&
+                hasStepCoverage(db, habit.id, day)) measuredDays++
+            day = day.plusDays(1)
         }
+        return ReminderSchedulePolicy.adjustedPeriodTarget(
+            habit.cadence, habit.targetCount, habit.startDate, date, excluded,
+            if (habit.automation == "healthConnectSteps") measuredDays else null,
+        )
+    }
+
+    private fun hasStepCoverage(db: SQLiteDatabase, habitId: String, day: LocalDate): Boolean =
+        db.rawQuery(
+            "SELECT 1 FROM habit_health_coverage WHERE habit_id=? AND local_date=? AND availability='available' AND read_complete=1 " +
+                "UNION ALL SELECT 1 FROM habit_quantity_logs WHERE habit_id=? AND local_date=? AND source='manual' LIMIT 1",
+            arrayOf(habitId, day.toString(), habitId, day.toString()),
+        ).use { it.moveToFirst() }
+
+    private fun periodSuccessCount(db: SQLiteDatabase, habit: HabitInfo, date: LocalDate): Int {
+        val naturalStart = ReminderSchedulePolicy.periodStart(habit.cadence, date)
         val periodStart = if (naturalStart.isBefore(habit.startDate)) habit.startDate else naturalStart
         val start = periodStart.toString()
         val through = date.toString()
@@ -229,12 +251,14 @@ object HabitReminderScheduler {
                 "SELECT local_date FROM habit_completions WHERE habit_id=? AND local_date BETWEEN ? AND ?",
                 arrayOf(habit.id, start, through),
             ).use { dates ->
-                var count = 0
+                val occurrences = mutableListOf<LocalDate>()
+                val excluded = mutableSetOf<LocalDate>()
                 while (dates.moveToNext()) {
                     val day = LocalDate.parse(dates.getString(0))
-                    if (!isExcludedDay(db, habit.id, day)) count++
+                    occurrences += day
+                    if (isExcludedDay(db, habit.id, day)) excluded += day
                 }
-                count
+                ReminderSchedulePolicy.successfulOccurrences(occurrences, excluded)
             }
             "quantitative" -> db.rawQuery(
                 "SELECT local_date,SUM(amount) FROM habit_quantity_logs WHERE habit_id=? AND local_date BETWEEN ? AND ? GROUP BY local_date",
@@ -243,7 +267,8 @@ object HabitReminderScheduler {
                 var count = 0
                 while (cursor.moveToNext()) {
                     val day = LocalDate.parse(cursor.getString(0))
-                    if (cursor.getDouble(1) >= (habit.target ?: Double.POSITIVE_INFINITY) && !isExcludedDay(db, habit.id, day)) count++
+                    if (cursor.getDouble(1) >= (habit.target ?: Double.POSITIVE_INFINITY) && !isExcludedDay(db, habit.id, day) &&
+                        (habit.automation != "healthConnectSteps" || hasStepCoverage(db, habit.id, day))) count++
                 }
                 count
             }
@@ -273,12 +298,12 @@ object HabitReminderScheduler {
     }
 
     private fun readHabit(context: Context, id: String): HabitInfo? = withDatabase(context) { db -> readHabit(db, id) }
-    private fun readHabit(db: SQLiteDatabase, id: String): HabitInfo? = db.rawQuery("SELECT id,name,type,quantity_target,cadence,target_count,weekdays,interval_days,start_date FROM habits WHERE id=? AND archived_at IS NULL", arrayOf(id)).use { c ->
+    private fun readHabit(db: SQLiteDatabase, id: String): HabitInfo? = db.rawQuery("SELECT id,name,type,quantity_target,cadence,target_count,weekdays,interval_days,start_date,automation FROM habits WHERE id=? AND archived_at IS NULL", arrayOf(id)).use { c ->
         if (!c.moveToFirst()) null else HabitInfo(
             id = c.getString(0), name = c.getString(1), type = c.getString(2),
             target = if (c.isNull(3)) null else c.getDouble(3), cadence = c.getString(4),
             targetCount = c.getInt(5), weekdays = c.getString(6).split(',').mapNotNull { it.toIntOrNull() }.toSet(),
-            intervalDays = c.getInt(7), startDate = LocalDate.parse(c.getString(8)),
+            intervalDays = c.getInt(7), startDate = LocalDate.parse(c.getString(8)), automation = c.getString(9),
         )
     }
 
@@ -314,6 +339,40 @@ internal object ReminderSchedulePolicy {
             else -> false
         }
     }
+
+    fun periodStart(cadence: String, date: LocalDate): LocalDate =
+        if (cadence == "weeklyTarget") date.minusDays((date.dayOfWeek.value - 1).toLong())
+        else date.withDayOfMonth(1)
+
+    fun periodEnd(cadence: String, date: LocalDate): LocalDate =
+        if (cadence == "weeklyTarget") periodStart(cadence, date).plusDays(6)
+        else date.withDayOfMonth(date.lengthOfMonth())
+
+    fun adjustedPeriodTarget(
+        cadence: String,
+        targetCount: Int,
+        startDate: LocalDate,
+        date: LocalDate,
+        excludedDays: Set<LocalDate> = emptySet(),
+        measuredDays: Int? = null,
+    ): Int {
+        val start = periodStart(cadence, date)
+        val end = periodEnd(cadence, date)
+        val fullDays = java.time.temporal.ChronoUnit.DAYS.between(start, end) + 1
+        var activeDays = 0
+        var day = if (start.isBefore(startDate)) startDate else start
+        while (!day.isAfter(end)) {
+            if (day !in excludedDays) activeDays++
+            day = day.plusDays(1)
+        }
+        val measurableDays = measuredDays ?: activeDays
+        if (measurableDays == 0) return 0
+        return kotlin.math.ceil(targetCount.toDouble() * measurableDays / fullDays).toInt()
+            .coerceIn(1, targetCount)
+    }
+
+    fun successfulOccurrences(occurrences: List<LocalDate>, excludedDays: Set<LocalDate>): Int =
+        occurrences.count { it !in excludedDays }
 
     fun periodTargetStillDue(cadence: String, targetCount: Int, successes: Int): Boolean =
         cadence !in setOf("weeklyTarget", "monthlyTarget") || successes < targetCount
