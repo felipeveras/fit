@@ -12,6 +12,20 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'health_fixture.dart';
 
+Future<void> settleDatabaseUi(WidgetTester tester) async {
+  for (var attempt = 0; attempt < 100; attempt++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump();
+    if (find.byType(LinearProgressIndicator).evaluate().isEmpty) {
+      await tester.pumpAndSettle();
+      return;
+    }
+  }
+  fail('SQLite UI did not finish loading');
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();
@@ -453,31 +467,40 @@ void main() {
         await tester.runAsync(
           () => store.open(databasePath: '${directory.path}/app_fit.db'),
         );
-        await tester.pumpWidget(
-          MaterialApp(home: HabitTrackerPage(database: store)),
-        );
+        await tester.runAsync(() async {
+          await tester.pumpWidget(
+            MaterialApp(home: HabitTrackerPage(database: store)),
+          );
+        });
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 80)),
         );
-        await tester.pumpAndSettle();
+        await settleDatabaseUi(tester);
         await tester.tap(find.byTooltip('Criar hábito'));
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 80)),
         );
-        await tester.pumpAndSettle();
+        await settleDatabaseUi(tester);
         await tester.tap(find.text('Quantidade'));
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 80)),
         );
-        await tester.pumpAndSettle();
+        await settleDatabaseUi(tester);
         await tester.enterText(find.byType(TextFormField).at(0), 'Agua');
         await tester.enterText(find.byType(TextFormField).at(1), '2,5');
         await tester.enterText(find.byType(TextFormField).at(2), 'ml');
         await tester.tap(find.text('Salvar'));
+        for (var attempt = 0; attempt < 100; attempt++) {
+          await tester.pump();
+          final saved = await tester.runAsync(
+            () async => (await store.open()).query('habits'),
+          );
+          if (saved!.isNotEmpty) break;
+        }
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 80)),
         );
-        await tester.pumpAndSettle();
+        await settleDatabaseUi(tester);
 
         final habits = (await tester.runAsync(
           () async => (await store.open()).query('habits'),

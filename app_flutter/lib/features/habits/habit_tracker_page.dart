@@ -183,9 +183,8 @@ class _HabitTrackerPageState extends State<HabitTrackerPage> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: rows.length,
-              onReorder: (oldIndex, newIndex) async {
+              onReorderItem: (oldIndex, newIndex) async {
                 final reordered = rows.map((e) => e.habit.id).toList();
-                if (newIndex > oldIndex) newIndex--;
                 final moved = reordered.removeAt(oldIndex);
                 reordered.insert(newIndex, moved);
                 await c.reorder(reordered);
@@ -1615,7 +1614,7 @@ class _NoteDialogState extends State<_NoteDialog> {
                       setState(() => photo.text = uri);
                     }
                   } catch (_) {
-                    if (mounted) {
+                    if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Não foi possível abrir as fotos.'),
